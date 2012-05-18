@@ -158,15 +158,19 @@ AudioEngine::pause()
 
 
 void
-AudioEngine::stop()
+AudioEngine::stop(AudioErrorCode errorCode)
 {
     tDebug( LOGEXTRA ) << Q_FUNC_INFO;
 
     emit stopped();
     if ( isStopped() )
         return;
-
-    setState( Stopped );
+    
+    if(errorCode == NoError) 
+        setState( Stopped );
+    else
+        setState( Error );
+    
     m_mediaObject->stop();
 
     if ( !m_playlist.isNull() )
@@ -464,15 +468,7 @@ AudioEngine::loadTrack( const Tomahawk::result_ptr& result )
             }
             m_input = io;
             m_mediaObject->play();
-            emit started( m_currentTrack );
-
-            if ( TomahawkSettings::instance()->privateListeningMode() != TomahawkSettings::FullyPrivate )
-            {
-                DatabaseCommand_LogPlayback* cmd = new DatabaseCommand_LogPlayback( m_currentTrack, DatabaseCommand_LogPlayback::Started );
-                Database::instance()->enqueue( QSharedPointer<DatabaseCommand>(cmd) );
-            }
             
-            sendNowPlayingNotification( Tomahawk::InfoSystem::InfoNowPlaying );
         }
     }
 
@@ -659,14 +655,29 @@ AudioEngine::onStateChanged( Phonon::State newState, Phonon::State oldState )
 
     if ( newState == Phonon::ErrorState )
     {
-        stop();
+        stop( UnknownError );
 
         tLog() << "Phonon Error:" << m_mediaObject->errorString() << m_mediaObject->errorType();
+        
         emit error( UnknownError );
+        
         return;
     }
     if ( newState == Phonon::PlayingState )
+    {
+        if( oldState != Phonon::PausedState ) 
+        {
+            emit started( m_currentTrack );
+            
+            if ( TomahawkSettings::instance()->privateListeningMode() != TomahawkSettings::FullyPrivate )
+            {
+                DatabaseCommand_LogPlayback* cmd = new DatabaseCommand_LogPlayback( m_currentTrack, DatabaseCommand_LogPlayback::Started );
+                Database::instance()->enqueue( QSharedPointer<DatabaseCommand>(cmd) );
+            }
+            sendNowPlayingNotification( Tomahawk::InfoSystem::InfoNowPlaying );
+        }
         setState( Playing );
+    }
 
     if ( oldState == Phonon::PlayingState )
     {
@@ -780,10 +791,13 @@ AudioEngine::setCurrentTrack( const Tomahawk::result_ptr& result )
     Tomahawk::result_ptr lastTrack = m_currentTrack;
     if ( !lastTrack.isNull() )
     {
-        if ( TomahawkSettings::instance()->privateListeningMode() == TomahawkSettings::PublicListening )
-        {
-            DatabaseCommand_LogPlayback* cmd = new DatabaseCommand_LogPlayback( lastTrack, DatabaseCommand_LogPlayback::Finished, m_timeElapsed );
-            Database::instance()->enqueue( QSharedPointer<DatabaseCommand>(cmd) );
+       if(m_state != Error) 
+       {
+            if ( TomahawkSettings::instance()->privateListeningMode() == TomahawkSettings::PublicListening )
+            {
+                DatabaseCommand_LogPlayback* cmd = new DatabaseCommand_LogPlayback( lastTrack, DatabaseCommand_LogPlayback::Finished, m_timeElapsed );
+                Database::instance()->enqueue( QSharedPointer<DatabaseCommand>(cmd) );
+            }
         }
 
         emit finished( lastTrack );
