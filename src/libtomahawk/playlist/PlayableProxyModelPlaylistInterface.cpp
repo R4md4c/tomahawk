@@ -17,54 +17,57 @@
  *   along with Tomahawk. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "TrackProxyModelPlaylistInterface.h"
+#include "PlayableProxyModelPlaylistInterface.h"
 
-#include "TrackProxyModel.h"
+#include "PlayableProxyModel.h"
 #include "Artist.h"
 #include "Album.h"
 #include "Query.h"
+#include "PlayableItem.h"
+#include "Source.h"
 #include "utils/Logger.h"
 
 using namespace Tomahawk;
 
-TrackProxyModelPlaylistInterface::TrackProxyModelPlaylistInterface( TrackProxyModel* proxyModel )
+
+PlayableProxyModelPlaylistInterface::PlayableProxyModelPlaylistInterface( PlayableProxyModel* proxyModel )
     : PlaylistInterface()
     , m_proxyModel( proxyModel )
-    , m_repeatMode( PlaylistInterface::NoRepeat )
+    , m_repeatMode( PlaylistModes::NoRepeat )
     , m_shuffled( false )
 {
 }
 
 
-TrackProxyModelPlaylistInterface::~TrackProxyModelPlaylistInterface()
+PlayableProxyModelPlaylistInterface::~PlayableProxyModelPlaylistInterface()
 {
     m_proxyModel.clear();
 }
 
 
 int
-TrackProxyModelPlaylistInterface::unfilteredTrackCount() const
+PlayableProxyModelPlaylistInterface::unfilteredTrackCount() const
 {
     return ( m_proxyModel.isNull() ? 0 : m_proxyModel.data()->sourceModel()->trackCount() );
 }
 
 
 int
-TrackProxyModelPlaylistInterface::trackCount() const
+PlayableProxyModelPlaylistInterface::trackCount() const
 {
     return ( m_proxyModel.isNull() ? 0 : m_proxyModel.data()->rowCount( QModelIndex() ) );
 }
 
 
 QString
-TrackProxyModelPlaylistInterface::filter() const
+PlayableProxyModelPlaylistInterface::filter() const
 {
     return ( m_proxyModel.isNull() ? QString() : m_proxyModel.data()->filterRegExp().pattern() );
 }
 
 
 void
-TrackProxyModelPlaylistInterface::setFilter( const QString& pattern )
+PlayableProxyModelPlaylistInterface::setFilter( const QString& pattern )
 {
     if ( m_proxyModel.isNull() )
         return;
@@ -77,17 +80,17 @@ TrackProxyModelPlaylistInterface::setFilter( const QString& pattern )
 
 
 QList< Tomahawk::query_ptr >
-TrackProxyModelPlaylistInterface::tracks()
+PlayableProxyModelPlaylistInterface::tracks()
 {
     if ( m_proxyModel.isNull() )
         return QList< Tomahawk::query_ptr >();
 
-    TrackProxyModel* proxyModel = m_proxyModel.data();
+    PlayableProxyModel* proxyModel = m_proxyModel.data();
     QList<Tomahawk::query_ptr> queries;
 
     for ( int i = 0; i < proxyModel->rowCount( QModelIndex() ); i++ )
     {
-        TrackModelItem* item = proxyModel->itemFromIndex( proxyModel->mapToSource( proxyModel->index( i, 0 ) ) );
+        PlayableItem* item = proxyModel->itemFromIndex( proxyModel->mapToSource( proxyModel->index( i, 0 ) ) );
         if ( item )
             queries << item->query();
     }
@@ -97,28 +100,28 @@ TrackProxyModelPlaylistInterface::tracks()
 
 
 Tomahawk::result_ptr
-TrackProxyModelPlaylistInterface::siblingItem( int itemsAway )
+PlayableProxyModelPlaylistInterface::siblingItem( int itemsAway )
 {
     return siblingItem( itemsAway, false );
 }
 
 
 bool
-TrackProxyModelPlaylistInterface::hasNextItem()
+PlayableProxyModelPlaylistInterface::hasNextItem()
 {
     return !( siblingItem( 1, true ).isNull() );
 }
 
 
 Tomahawk::result_ptr
-TrackProxyModelPlaylistInterface::siblingItem( int itemsAway, bool readOnly )
+PlayableProxyModelPlaylistInterface::siblingItem( int itemsAway, bool readOnly )
 {
     qDebug() << Q_FUNC_INFO;
 
     if ( m_proxyModel.isNull() )
         return Tomahawk::result_ptr();
 
-    TrackProxyModel* proxyModel = m_proxyModel.data();
+    PlayableProxyModel* proxyModel = m_proxyModel.data();
 
     QModelIndex idx = proxyModel->index( 0, 0 );
     if ( proxyModel->rowCount() )
@@ -134,7 +137,7 @@ TrackProxyModelPlaylistInterface::siblingItem( int itemsAway, bool readOnly )
             idx = proxyModel->currentIndex();
 
             // random mode is disabled
-            if ( m_repeatMode != PlaylistInterface::RepeatOne )
+            if ( m_repeatMode != PlaylistModes::RepeatOne )
             {
                 // keep progressing through the playlist normally
                 idx = proxyModel->index( idx.row() + itemsAway, 0 );
@@ -142,7 +145,7 @@ TrackProxyModelPlaylistInterface::siblingItem( int itemsAway, bool readOnly )
         }
     }
 
-    if ( !idx.isValid() && m_repeatMode == PlaylistInterface::RepeatAll )
+    if ( !idx.isValid() && m_repeatMode == PlaylistModes::RepeatAll )
     {
         // repeat all tracks
         if ( itemsAway > 0 )
@@ -160,7 +163,7 @@ TrackProxyModelPlaylistInterface::siblingItem( int itemsAway, bool readOnly )
     // Try to find the next available PlaylistItem (with results)
     while ( idx.isValid() )
     {
-        TrackModelItem* item = proxyModel->itemFromIndex( proxyModel->mapToSource( idx ) );
+        PlayableItem* item = proxyModel->itemFromIndex( proxyModel->mapToSource( idx ) );
         if ( item && item->query()->playable() )
         {
             qDebug() << "Next PlaylistItem found:" << item->query()->toString() << item->query()->results().at( 0 )->url();
@@ -179,14 +182,14 @@ TrackProxyModelPlaylistInterface::siblingItem( int itemsAway, bool readOnly )
 
 
 Tomahawk::result_ptr
-TrackProxyModelPlaylistInterface::currentItem() const
+PlayableProxyModelPlaylistInterface::currentItem() const
 {
     if ( m_proxyModel.isNull() )
         return Tomahawk::result_ptr();
 
-    TrackProxyModel* proxyModel = m_proxyModel.data();
+    PlayableProxyModel* proxyModel = m_proxyModel.data();
 
-    TrackModelItem* item = proxyModel->itemFromIndex( proxyModel->mapToSource( proxyModel->currentIndex() ) );
+    PlayableItem* item = proxyModel->itemFromIndex( proxyModel->mapToSource( proxyModel->currentIndex() ) );
     if ( item && !item->query().isNull() && item->query()->playable() )
         return item->query()->results().at( 0 );
     return Tomahawk::result_ptr();

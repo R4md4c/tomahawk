@@ -24,6 +24,7 @@
 class Ui_LastFmConfig;
 
 namespace Tomahawk {
+
 namespace Accounts {
 
 class LastFmAccount;
@@ -39,18 +40,25 @@ public:
     bool scrobble() const;
 
 public slots:
-    void testLogin( bool );
+    void testLogin();
     void onLastFmFinished();
 
 private slots:
     void enableButton();
+    
+    void loadHistory();
+    void onHistoryLoaded();
 
 private:
     LastFmAccount* m_account;
     Ui_LastFmConfig* m_ui;
+    
+    unsigned int m_page;
+    unsigned int m_lastTimeStamp;
 };
 
 }
+
 }
 
 #endif // LASTFMCONFIG_H

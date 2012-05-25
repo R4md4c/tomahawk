@@ -22,6 +22,7 @@
 
 #include "infosystem/InfoSystem.h"
 #include "infosystem/InfoSystemWorker.h"
+#include "infoplugins/InfoPluginDllMacro.h"
 
 class QNetworkReply;
 
@@ -31,15 +32,17 @@ namespace Tomahawk
 namespace InfoSystem
 {
 
-class MusicBrainzPlugin : public InfoPlugin
+class INFOPLUGINDLLEXPORT MusicBrainzPlugin : public InfoPlugin
 {
     Q_OBJECT
+    Q_INTERFACES( Tomahawk::InfoSystem::InfoPlugin )
 
 public:
     MusicBrainzPlugin();
     virtual ~MusicBrainzPlugin();
 
 protected slots:
+    virtual void init() {}
     virtual void getInfo( Tomahawk::InfoSystem::InfoRequestData requestData );
     virtual void notInCacheSlot( InfoStringHash criteria, InfoRequestData requestData );
 

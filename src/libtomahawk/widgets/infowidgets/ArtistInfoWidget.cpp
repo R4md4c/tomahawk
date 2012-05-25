@@ -26,6 +26,7 @@
 #include "playlist/TreeModel.h"
 #include "playlist/PlaylistModel.h"
 #include "playlist/TreeProxyModel.h"
+#include "Source.h"
 
 #include "database/DatabaseCommand_AllTracks.h"
 #include "database/DatabaseCommand_AllAlbums.h"
@@ -52,13 +53,6 @@ ArtistInfoWidget::ArtistInfoWidget( const Tomahawk::artist_ptr& artist, QWidget*
 
     m_plInterface = Tomahawk::playlistinterface_ptr( new MetaPlaylistInterface( this ) );
 
-    ui->albums->setFrameShape( QFrame::NoFrame );
-    ui->albums->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-    ui->relatedArtists->setFrameShape( QFrame::NoFrame );
-    ui->relatedArtists->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-    ui->topHits->setFrameShape( QFrame::NoFrame );
-    ui->topHits->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-
     TomahawkUtils::unmarginLayout( layout() );
     TomahawkUtils::unmarginLayout( ui->layoutWidget->layout() );
     TomahawkUtils::unmarginLayout( ui->layoutWidget1->layout() );
@@ -75,8 +69,8 @@ ArtistInfoWidget::ArtistInfoWidget( const Tomahawk::artist_ptr& artist, QWidget*
     ui->relatedArtists->proxyModel()->sort( -1 );
 
     m_topHitsModel = new PlaylistModel( ui->topHits );
-    m_topHitsModel->setStyle( TrackModel::Short );
-    ui->topHits->setTrackModel( m_topHitsModel );
+    m_topHitsModel->setStyle( PlayableModel::Short );
+    ui->topHits->setPlayableModel( m_topHitsModel );
     ui->topHits->setSortingEnabled( false );
 
     m_pixmap = TomahawkUtils::defaultPixmap( TomahawkUtils::DefaultArtistImage, TomahawkUtils::ScaledCover, QSize( 48, 48 ) );
@@ -192,6 +186,8 @@ ArtistInfoWidget::load( const artist_ptr& artist )
 void
 ArtistInfoWidget::onAlbumsFound( const QList<Tomahawk::album_ptr>& albums, ModelMode mode )
 {
+    Q_UNUSED( mode );
+
     m_albumsModel->addAlbums( albums );
 }
 
@@ -239,13 +235,13 @@ ArtistInfoWidget::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestD
             int i = 0;
             foreach ( const QString& track, tracks )
             {
-                queries << Query::get( m_artist->name(), track, QString() );
-                Pipeline::instance()->resolve( queries );
+                queries << Query::get( m_artist->name(), track, QString(), QString(), false );
 
                 if ( ++i == 15 )
                     break;
             }
 
+            Pipeline::instance()->resolve( queries );
             m_topHitsModel->append( queries );
             break;
         }

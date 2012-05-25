@@ -30,6 +30,7 @@ namespace Tomahawk {
 
 class QEvent;
 class AlbumProxyModel;
+class ImageButton;
 
 class DLLEXPORT AlbumItemDelegate : public QStyledItemDelegate
 {
@@ -38,13 +39,12 @@ Q_OBJECT
 public:
     AlbumItemDelegate( QAbstractItemView* parent = 0, AlbumProxyModel* proxy = 0 );
 
-    void whitespaceMouseEvent();
-
 protected:
     void paint( QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index ) const;
     QSize sizeHint( const QStyleOptionViewItem& option, const QModelIndex& index ) const;
 
     bool editorEvent( QEvent* event, QAbstractItemModel* model, const QStyleOptionViewItem& option, const QModelIndex& index );
+    bool eventFilter( QObject* obj, QEvent* event );
 
 signals:
     void updateIndex( const QModelIndex& idx );
@@ -52,6 +52,13 @@ signals:
 private slots:
     void modelChanged();
     void doUpdateIndex( const QPersistentModelIndex& idx );
+    
+    void onScrolled( int dx, int dy );
+    void onPlaybackStarted( const QPersistentModelIndex& index );
+    void onPlaybackFinished();
+    
+    void onPlayClicked( const QPersistentModelIndex& index );
+    void onPlaylistChanged( const QPersistentModelIndex& index );
 
 private:
     QAbstractItemView* m_view;
@@ -60,11 +67,14 @@ private:
     mutable QHash< QPersistentModelIndex, QRect > m_artistNameRects;
     mutable QHash< QPersistentModelIndex, QSharedPointer< Tomahawk::PixmapDelegateFader > > m_covers;
 
-    QPersistentModelIndex m_hoveringOver;
     QPersistentModelIndex m_hoverIndex;
+    QPersistentModelIndex m_hoveringOver;
     mutable QRect m_playButtonRect;
 
     QPixmap m_shadowPixmap;
+    mutable QHash< QPersistentModelIndex, QWidget* > m_spinner;
+    mutable QHash< QPersistentModelIndex, ImageButton* > m_playButton;
+    mutable QHash< QPersistentModelIndex, ImageButton* > m_pauseButton;
 };
 
 #endif // ALBUMITEMDELEGATE_H

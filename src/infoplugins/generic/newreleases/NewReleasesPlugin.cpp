@@ -4,6 +4,7 @@
 #include <QtCore/QSettings>
 #include <QtNetwork/QNetworkConfiguration>
 #include <QtNetwork/QNetworkReply>
+#include <QtPlugin>
 
 #include "Album.h"
 #include "CountryUtils.h"
@@ -13,6 +14,7 @@
 #include "utils/TomahawkUtils.h"
 #include "utils/Logger.h"
 #include "utils/TomahawkCache.h"
+#include "Source.h"
 
 #include <qjson/parser.h>
 #include <qjson/serializer.h>
@@ -28,6 +30,16 @@ NewReleasesPlugin::NewReleasesPlugin()
 {
     m_nrVersion = "0";
     m_supportedGetTypes << InfoNewReleaseCapabilities << InfoNewRelease;
+}
+
+NewReleasesPlugin::~NewReleasesPlugin()
+{
+    tDebug ( LOGVERBOSE ) << Q_FUNC_INFO;
+}
+
+void
+NewReleasesPlugin::init()
+{
     QVariantList source_qvarlist = TomahawkUtils::Cache::instance()->getData( "NewReleasesPlugin", "nr_sources" ).toList();
     foreach( const QVariant & source, source_qvarlist ) {
         m_nrSources.append( source.toString() );
@@ -37,11 +49,6 @@ NewReleasesPlugin::NewReleasesPlugin()
     tDebug( LOGVERBOSE ) << Q_FUNC_INFO << "total sources" << m_nrSources.size() << source_qvarlist.size();
     if( m_nrSources.size() == 0 )
         fetchNRSourcesList( true );
-}
-
-NewReleasesPlugin::~NewReleasesPlugin()
-{
-    tDebug ( LOGVERBOSE ) << Q_FUNC_INFO;
 }
 
 void NewReleasesPlugin::dataError ( InfoRequestData requestData )
@@ -348,9 +355,4 @@ void NewReleasesPlugin::nrReturned()
 }
 
 
-
-
-
-
-
-
+Q_EXPORT_PLUGIN2( Tomahawk::InfoSystem::InfoPlugin, Tomahawk::InfoSystem::NewReleasesPlugin )

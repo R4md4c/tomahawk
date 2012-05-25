@@ -25,7 +25,7 @@
 #include <QHash>
 
 #include "Typedefs.h"
-#include "TrackModel.h"
+#include "PlayableModel.h"
 #include "Query.h"
 #include "Source.h"
 #include "PlaylistInterface.h"
@@ -36,7 +36,7 @@
 
 class QMetaData;
 
-class DLLEXPORT CollectionFlatModel : public TrackModel
+class DLLEXPORT CollectionFlatModel : public PlayableModel
 {
 Q_OBJECT
 
@@ -51,7 +51,7 @@ public:
     void addFilteredCollection( const Tomahawk::collection_ptr& collection, unsigned int amount, DatabaseCommand_AllTracks::SortOrder order );
 
 signals:
-    void repeatModeChanged( Tomahawk::PlaylistInterface::RepeatMode mode );
+    void repeatModeChanged( Tomahawk::PlaylistModes::RepeatMode mode );
     void shuffleModeChanged( bool enabled );
 
     void loadingStarted();

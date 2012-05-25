@@ -31,6 +31,8 @@
 #include "GlobalActionManager.h"
 #include "utils/Logger.h"
 #include "utils/TomahawkUtils.h"
+#include "audio/AudioEngine.h"
+#include "Source.h"
 
 #include "MprisPlugin.h"
 #include "MprisPluginRootAdaptor.h"
@@ -52,7 +54,17 @@ MprisPlugin::MprisPlugin()
 
     // Types of pushInfo we care about
     m_supportedPushTypes << InfoNowPlaying << InfoNowPaused << InfoNowResumed << InfoNowStopped;
+}
 
+
+MprisPlugin::~MprisPlugin()
+{
+}
+
+
+void
+MprisPlugin::init()
+{
     // DBus connection
     new MprisPluginRootAdaptor( this );
     new MprisPluginPlayerAdaptor( this );
@@ -79,11 +91,6 @@ MprisPlugin::MprisPlugin()
     // Connect to AudioEngine's seeked signal
     connect( AudioEngine::instance(), SIGNAL( seeked( qint64 ) ),
                                         SLOT( onSeeked( qint64 ) ) );
-}
-
-
-MprisPlugin::~MprisPlugin()
-{
 }
 
 
@@ -198,7 +205,7 @@ MprisPlugin::canSeek() const
     Tomahawk::playlistinterface_ptr p = AudioEngine::instance()->playlist();
     if ( p.isNull() )
         return false;
-    return p->seekRestrictions() != PlaylistInterface::NoSeek;
+    return p->seekRestrictions() != PlaylistModes::NoSeek;
 
 }
 
@@ -209,16 +216,16 @@ MprisPlugin::loopStatus() const
     Tomahawk::playlistinterface_ptr p = AudioEngine::instance()->playlist();
     if ( p.isNull() )
         return "None";
-    PlaylistInterface::RepeatMode mode = p->repeatMode();
+    PlaylistModes::RepeatMode mode = p->repeatMode();
     switch( mode )
     {
-        case PlaylistInterface::RepeatOne:
+        case PlaylistModes::RepeatOne:
             return "Track";
             break;
-        case PlaylistInterface::RepeatAll:
+        case PlaylistModes::RepeatAll:
             return "Playlist";
             break;
-        case PlaylistInterface::NoRepeat:
+        case PlaylistModes::NoRepeat:
             return "None";
             break;
         default:
@@ -237,11 +244,11 @@ MprisPlugin::setLoopStatus( const QString& value )
     if ( p.isNull() )
         return;
     if ( value == "Track" )
-        p->setRepeatMode( PlaylistInterface::RepeatOne );
+        p->setRepeatMode( PlaylistModes::RepeatOne );
     else if ( value == "Playlist" )
-        p->setRepeatMode( PlaylistInterface::RepeatAll );
+        p->setRepeatMode( PlaylistModes::RepeatAll );
     else if ( value == "None" )
-        p->setRepeatMode( PlaylistInterface::NoRepeat );
+        p->setRepeatMode( PlaylistModes::NoRepeat );
 }
 
 
@@ -485,7 +492,7 @@ MprisPlugin::audioStarted( const QVariant& input )
         return;
 
     QVariantMap map = input.toMap();
-    
+
     if ( !map.contains( "trackinfo" ) || !map[ "trackinfo" ].canConvert< Tomahawk::InfoSystem::InfoStringHash >() )
         return;
 

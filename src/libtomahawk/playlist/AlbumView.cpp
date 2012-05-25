@@ -29,9 +29,10 @@
 #include "context/ContextWidget.h"
 #include "TomahawkSettings.h"
 #include "Artist.h"
-#include "AlbumItem.h"
+#include "PlayableItem.h"
 #include "AlbumItemDelegate.h"
 #include "AlbumModel.h"
+#include "ContextMenu.h"
 #include "ViewManager.h"
 #include "utils/Logger.h"
 #include "utils/AnimatedSpinner.h"
@@ -48,8 +49,12 @@ AlbumView::AlbumView( QWidget* parent )
     , m_delegate( 0 )
     , m_loadingSpinner( new AnimatedSpinner( this ) )
     , m_overlay( new OverlayWidget( this ) )
+    , m_contextMenu( new ContextMenu( this ) )
     , m_inited( false )
 {
+    setFrameShape( QFrame::NoFrame );
+    setAttribute( Qt::WA_MacShowFocusRect, 0 );
+
     setDragEnabled( true );
     setDropIndicatorShown( false );
     setDragDropOverwriteMode( false );
@@ -57,18 +62,22 @@ AlbumView::AlbumView( QWidget* parent )
     setSpacing( 0 );
     setContentsMargins( 0, 0, 0, 0 );
     setMouseTracking( true );
-
-    setStyleSheet( "QListView { background-color: #323435; }" );
-
+    setContextMenuPolicy( Qt::CustomContextMenu );
     setResizeMode( Adjust );
     setViewMode( IconMode );
     setVerticalScrollMode( QAbstractItemView::ScrollPerPixel );
     setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOn );
 
+    setStyleSheet( "QListView { background-color: #323435; }" );
+
     setAutoFitItems( true );
     setProxyModel( new AlbumProxyModel( this ) );
 
     connect( this, SIGNAL( doubleClicked( QModelIndex ) ), SLOT( onItemActivated( QModelIndex ) ) );
+    connect( this, SIGNAL( customContextMenuRequested( QPoint ) ), SLOT( onCustomContextMenu( QPoint ) ) );
+    connect( this, SIGNAL( customContextMenuRequested( QPoint ) ), SLOT( onCustomContextMenu( QPoint ) ) );
+    connect( proxyModel(), SIGNAL( modelReset() ), SLOT( layoutItems() ) );
+//    connect( m_contextMenu, SIGNAL( triggered( int ) ), SLOT( onMenuTriggered( int ) ) );
 }
 
 
@@ -102,6 +111,7 @@ AlbumView::setModel( QAbstractItemModel* model )
 void
 AlbumView::setAlbumModel( AlbumModel* model )
 {
+    m_inited = false;
     m_model = model;
 
     if ( m_proxyModel )
@@ -125,7 +135,7 @@ AlbumView::currentChanged( const QModelIndex& current, const QModelIndex& previo
 {
     QListView::currentChanged( current, previous );
 
-    AlbumItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( current ) );
+    PlayableItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( current ) );
     if ( item )
     {
         if ( !item->album().isNull() )
@@ -137,7 +147,7 @@ AlbumView::currentChanged( const QModelIndex& current, const QModelIndex& previo
 void
 AlbumView::onItemActivated( const QModelIndex& index )
 {
-    AlbumItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( index ) );
+    PlayableItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( index ) );
     if ( item )
     {
 //        qDebug() << "Result activated:" << item->album()->tracks().first()->toString() << item->album()->tracks().first()->results().first()->url();
@@ -147,8 +157,8 @@ AlbumView::onItemActivated( const QModelIndex& index )
             ViewManager::instance()->show( item->album() );
         else if ( !item->artist().isNull() )
             ViewManager::instance()->show( item->artist() );
-        else if ( item->query()->numResults() )
-            AudioEngine::instance()->playItem( playlistinterface_ptr(), item->query()->results().first() );
+        else if ( !item->query().isNull() )
+            AudioEngine::instance()->playItem( playlistinterface_ptr(), item->query() );
     }
 }
 
@@ -171,6 +181,14 @@ AlbumView::onItemCountChanged( unsigned int items )
 
 
 void
+AlbumView::scrollContentsBy( int dx, int dy )
+{
+    QListView::scrollContentsBy( dx, dy );
+    emit scrolledContents( dx, dy );
+}
+
+
+void
 AlbumView::paintEvent( QPaintEvent* event )
 {
     if ( !autoFitItems() || m_inited || !m_proxyModel->rowCount() )
@@ -182,8 +200,14 @@ void
 AlbumView::resizeEvent( QResizeEvent* event )
 {
     QListView::resizeEvent( event );
+    layoutItems();
+}
 
-    if ( autoFitItems() )
+
+void
+AlbumView::layoutItems()
+{
+    if ( autoFitItems() && m_model )
     {
 #ifdef Q_WS_X11
 //        int scrollbar = verticalScrollBar()->isVisible() ? verticalScrollBar()->width() + 16 : 0;
@@ -194,6 +218,7 @@ AlbumView::resizeEvent( QResizeEvent* event )
         int rectWidth = contentsRect().width() - scrollbar - 3;
         int itemWidth = 160;
         QSize itemSize = m_proxyModel->data( QModelIndex(), Qt::SizeHintRole ).toSize();
+        Q_UNUSED( itemSize ); // looks obsolete
 
         int itemsPerRow = qMax( 1, qFloor( rectWidth / itemWidth ) );
 //        int rightSpacing = rectWidth - ( itemsPerRow * ( itemSize.width() + 16 ) );
@@ -202,6 +227,7 @@ AlbumView::resizeEvent( QResizeEvent* event )
         int remSpace = rectWidth - ( itemsPerRow * itemWidth );
         int extraSpace = remSpace / itemsPerRow;
         int newItemWidth = itemWidth + extraSpace;
+        
         m_model->setItemSize( QSize( newItemWidth, newItemWidth ) );
 
         if ( !m_inited )
@@ -250,4 +276,43 @@ AlbumView::startDrag( Qt::DropActions supportedActions )
     drag->setHotSpot( QPoint( -20, -20 ) );
 
     /* Qt::DropAction action = */ drag->exec( supportedActions, Qt::CopyAction );
+}
+
+
+void
+AlbumView::onCustomContextMenu( const QPoint& pos )
+{
+    m_contextMenu->clear();
+
+    QModelIndex idx = indexAt( pos );
+    idx = idx.sibling( idx.row(), 0 );
+    m_contextMenuIndex = idx;
+
+    if ( !idx.isValid() )
+        return;
+
+    QList<query_ptr> queries;
+    QList<artist_ptr> artists;
+    QList<album_ptr> albums;
+
+    foreach ( const QModelIndex& index, selectedIndexes() )
+    {
+        if ( index.column() || selectedIndexes().contains( index.parent() ) )
+            continue;
+
+        PlayableItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( index ) );
+
+        if ( item && !item->query().isNull() )
+            queries << item->query();
+        else if ( item && !item->artist().isNull() )
+            artists << item->artist();
+        else if ( item && !item->album().isNull() )
+            albums << item->album();
+    }
+
+    m_contextMenu->setQueries( queries );
+    m_contextMenu->setArtists( artists );
+    m_contextMenu->setAlbums( albums );
+
+    m_contextMenu->exec( viewport()->mapToGlobal( pos ) );
 }

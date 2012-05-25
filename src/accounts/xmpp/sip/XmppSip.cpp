@@ -48,6 +48,7 @@
 #include <utils/TomahawkUtils.h>
 #include <utils/Logger.h>
 #include <accounts/AccountManager.h>
+#include <TomahawkSettings.h>
 
 #ifndef ENABLE_HEADLESS
     #include <QtGui/QInputDialog>
@@ -292,7 +293,6 @@ XmppSipPlugin::onConnect()
     {
         infoPlugin().data()->moveToThread( Tomahawk::InfoSystem::InfoSystem::instance()->workerThread().data() );
         Tomahawk::InfoSystem::InfoSystem::instance()->addInfoPlugin( infoPlugin() );
-        QMetaObject::invokeMethod( infoPlugin().data(), "init", Qt::QueuedConnection );
     }
 
     //FIXME: this implementation is totally broken atm, so it's disabled to avoid harm :P

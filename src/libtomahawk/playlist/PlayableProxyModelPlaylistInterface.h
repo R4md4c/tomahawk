@@ -23,21 +23,21 @@
 #include <QtGui/QSortFilterProxyModel>
 
 #include "PlaylistInterface.h"
-#include "playlist/TrackModel.h"
+#include "playlist/PlayableModel.h"
 
 #include "DllMacro.h"
 
-class TrackProxyModel;
+class PlayableProxyModel;
 
 namespace Tomahawk {
 
-class DLLEXPORT TrackProxyModelPlaylistInterface : public Tomahawk::PlaylistInterface
+class DLLEXPORT PlayableProxyModelPlaylistInterface : public Tomahawk::PlaylistInterface
 {
 Q_OBJECT
 
 public:
-    explicit TrackProxyModelPlaylistInterface( TrackProxyModel* proxyModel );
-    virtual ~TrackProxyModelPlaylistInterface();
+    explicit PlayableProxyModelPlaylistInterface( PlayableProxyModel* proxyModel );
+    virtual ~PlayableProxyModelPlaylistInterface();
 
     virtual QList<Tomahawk::query_ptr> tracks();
 
@@ -52,16 +52,16 @@ public:
     virtual QString filter() const;
     virtual void setFilter( const QString& pattern );
 
-    virtual PlaylistInterface::RepeatMode repeatMode() const { return m_repeatMode; }
+    virtual PlaylistModes::RepeatMode repeatMode() const { return m_repeatMode; }
     virtual bool shuffled() const { return m_shuffled; }
 
 public slots:
-    virtual void setRepeatMode( Tomahawk::PlaylistInterface::RepeatMode mode ) { m_repeatMode = mode; emit repeatModeChanged( mode ); }
+    virtual void setRepeatMode( Tomahawk::PlaylistModes::RepeatMode mode ) { m_repeatMode = mode; emit repeatModeChanged( mode ); }
     virtual void setShuffled( bool enabled ) { m_shuffled = enabled; emit shuffleModeChanged( enabled ); }
 
 protected:
-    QWeakPointer< TrackProxyModel > m_proxyModel;
-    RepeatMode m_repeatMode;
+    QWeakPointer< PlayableProxyModel > m_proxyModel;
+    PlaylistModes::RepeatMode m_repeatMode;
     bool m_shuffled;
 };
 

@@ -26,6 +26,7 @@
 #include "widgets/OverlayWidget.h"
 #include "utils/Logger.h"
 #include "PlaylistView.h"
+#include "Source.h"
 #include "utils/TomahawkUtilsGui.h"
 
 using namespace Tomahawk;
@@ -44,8 +45,6 @@ QueueView::QueueView( AnimatedSplitter* parent )
 
     ui->queue->setProxyModel( new QueueProxyModel( ui->queue ) );
     ui->queue->setSizePolicy( QSizePolicy::Preferred, QSizePolicy::Ignored );
-    ui->queue->setFrameShape( QFrame::NoFrame );
-    ui->queue->setAttribute( Qt::WA_MacShowFocusRect, 0 );
     ui->queue->overlay()->setEnabled( false );
 
     connect( ui->toggleButton, SIGNAL( clicked() ), SLOT( show() ) );

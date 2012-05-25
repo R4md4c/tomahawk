@@ -53,27 +53,10 @@ SearchWidget::SearchWidget( const QString& search, QWidget* parent )
     m_artistsModel = new AlbumModel( ui->artistView );
     ui->artistView->setAlbumModel( m_artistsModel );
 
-    ui->artistView->setAutoFitItems( false );
-    ui->albumView->setAutoFitItems( false );
-    ui->artistView->setSpacing( 8 );
-    ui->albumView->setSpacing( 8 );
-
     ui->artistView->proxyModel()->sort( -1 );
     ui->albumView->proxyModel()->sort( -1 );
 
     TomahawkUtils::unmarginLayout( ui->verticalLayout );
-
-    ui->artistView->setContentsMargins( 0, 0, 0, 0 );
-    ui->artistView->setFrameShape( QFrame::NoFrame );
-    ui->artistView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-
-    ui->albumView->setContentsMargins( 0, 0, 0, 0 );
-    ui->albumView->setFrameShape( QFrame::NoFrame );
-    ui->albumView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-
-    ui->resultsView->setContentsMargins( 0, 0, 0, 0 );
-    ui->resultsView->setFrameShape( QFrame::NoFrame );
-    ui->resultsView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
 
     ui->resultsView->loadingSpinner()->fadeIn();
     m_queries << Tomahawk::Query::get( search, uuid() );

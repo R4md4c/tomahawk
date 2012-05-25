@@ -22,12 +22,13 @@
 #include "CollectionProxyModel.h"
 #include "Album.h"
 #include "Query.h"
+#include "Source.h"
 #include "utils/Logger.h"
 
 using namespace Tomahawk;
 
 CollectionProxyModelPlaylistInterface::CollectionProxyModelPlaylistInterface( CollectionProxyModel *proxyModel )
-    : TrackProxyModelPlaylistInterface( proxyModel )
+    : PlayableProxyModelPlaylistInterface( proxyModel )
 {
 }
 

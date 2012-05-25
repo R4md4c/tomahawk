@@ -26,6 +26,7 @@
 #include "AtticaManager.h"
 #include "Pipeline.h"
 #include "accounts/AccountManager.h"
+#include "Source.h"
 
 using namespace Tomahawk;
 using namespace InfoSystem;
@@ -74,7 +75,6 @@ LastFmAccount::LastFmAccount( const QString& accountId )
     {
         infoPlugin().data()->moveToThread( Tomahawk::InfoSystem::InfoSystem::instance()->workerThread().data() );
         Tomahawk::InfoSystem::InfoSystem::instance()->addInfoPlugin( infoPlugin() );
-        QMetaObject::invokeMethod( infoPlugin().data(), "init", Qt::QueuedConnection );
     }
 }
 
@@ -83,7 +83,7 @@ LastFmAccount::~LastFmAccount()
 {
     if ( m_infoPlugin )
         Tomahawk::InfoSystem::InfoSystem::instance()->removeInfoPlugin( infoPlugin() );
-    
+
     delete m_resolver.data();
 }
 
@@ -168,7 +168,7 @@ LastFmAccount::infoPlugin()
 {
     if ( m_infoPlugin.isNull() )
         m_infoPlugin = QWeakPointer< LastFmInfoPlugin >( new LastFmInfoPlugin( this ) );
-    
+
     return InfoPluginPtr( m_infoPlugin.data() );
 }
 
@@ -288,7 +288,7 @@ LastFmAccount::hookupResolver()
 
     const AtticaManager::Resolver data = AtticaManager::instance()->resolverData( res.id() );
 
-    m_resolver = QWeakPointer< ExternalResolverGui >( qobject_cast< ExternalResolverGui* >( Pipeline::instance()->addScriptResolver( data.scriptPath, enabled() ) ) );
+    m_resolver = QWeakPointer< ExternalResolverGui >( qobject_cast< ExternalResolverGui* >( Pipeline::instance()->addScriptResolver( data.scriptPath ) ) );
     connect( m_resolver.data(), SIGNAL( changed() ), this, SLOT( resolverChanged() ) );
 }
 

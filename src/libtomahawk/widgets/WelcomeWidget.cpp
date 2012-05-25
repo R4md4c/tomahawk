@@ -54,10 +54,6 @@ WelcomeWidget::WelcomeWidget( QWidget* parent )
 
     ui->playlistWidget->setFrameShape( QFrame::NoFrame );
     ui->playlistWidget->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-    ui->tracksView->setFrameShape( QFrame::NoFrame );
-    ui->tracksView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-    ui->additionsView->setFrameShape( QFrame::NoFrame );
-    ui->additionsView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
 
     TomahawkUtils::unmarginLayout( layout() );
     TomahawkUtils::unmarginLayout( ui->verticalLayout->layout() );
@@ -72,7 +68,7 @@ WelcomeWidget::WelcomeWidget( QWidget* parent )
     updatePlaylists();
 
     m_tracksModel = new RecentlyPlayedModel( source_ptr(), ui->tracksView );
-    m_tracksModel->setStyle( TrackModel::ShortWithAvatars );
+    m_tracksModel->setStyle( PlayableModel::ShortWithAvatars );
     ui->tracksView->overlay()->setEnabled( false );
     ui->tracksView->setPlaylistModel( m_tracksModel );
 

@@ -24,6 +24,7 @@
 #include "Account.h"
 
 #include <QAbstractListModel>
+#include <QSet>
 
 
 namespace Tomahawk {
@@ -105,8 +106,12 @@ private slots:
     void accountRemoved( Tomahawk::Accounts::Account* );
     void accountStateChanged( Account*, Accounts::Account::ConnectionState );
 
+    void onStartedInstalling( const QString& resolverId );
+    void onFinishedInstalling( const QString& resolverId );
     void resolverInstallFailed( const QString& resolverId );
 private:
+    QModelIndex indexForAtticaId( const QString& resolverId ) const;
+
     QList< AccountModelNode* > m_accounts;
     QSet< QString > m_waitingForAtticaInstall;
 };

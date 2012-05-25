@@ -23,6 +23,7 @@
 #include "AccountManager.h"
 #include "AtticaManager.h"
 #include "ResolverAccount.h"
+#include "TomahawkSettings.h"
 
 #ifndef ENABLE_HEADLESS
 #include <QMessageBox>
@@ -39,6 +40,8 @@ AccountModel::AccountModel( QObject* parent )
     : QAbstractListModel( parent )
 {
     connect( AtticaManager::instance(), SIGNAL( resolversLoaded( Attica::Content::List ) ), this, SLOT( loadData() ) );
+    connect( AtticaManager::instance(), SIGNAL( startedInstalling( QString ) ), this, SLOT( onStartedInstalling( QString ) ) );
+    connect( AtticaManager::instance(), SIGNAL( resolverInstalled( QString ) ), this, SLOT( onFinishedInstalling( QString ) ) );
     connect( AtticaManager::instance(), SIGNAL( resolverInstallationFailed( QString ) ), this, SLOT( resolverInstallFailed( QString ) ) );
 
     connect( AccountManager::instance(), SIGNAL( added( Tomahawk::Accounts::Account* ) ), this, SLOT( accountAdded( Tomahawk::Accounts::Account* ) ) );
@@ -98,6 +101,8 @@ AccountModel::loadData()
                 qDebug() << "All accounts after remove:";
                 foreach ( Account* acct, allAccounts )
                     qDebug() << acct->accountFriendlyName() << "\t" << acct->accountId();    // All other accounts we haven't dealt with yet
+#else
+                Q_UNUSED( removed );
 #endif
             }
         } else
@@ -106,10 +111,14 @@ AccountModel::loadData()
 
             foreach ( Account* acct, AccountManager::instance()->accounts( Accounts::ResolverType ) )
             {
-//                 qDebug() << "Found ResolverAccount" << acct->accountFriendlyName();
+#if ACCOUNTMODEL_DEBUG
+                qDebug() << "Found ResolverAccount" << acct->accountFriendlyName();
+#endif
                 if ( AtticaResolverAccount* resolver = qobject_cast< AtticaResolverAccount* >( acct ) )
                 {
-//                     qDebug() << "Which is an attica resolver with id:" << resolver->atticaId();
+#if ACCOUNTMODEL_DEBUG
+                    qDebug() << "Which is an attica resolver with id:" << resolver->atticaId();
+#endif
                     if ( resolver->atticaId() == content.id() )
                     {
                         allAccounts.removeAll( acct );
@@ -126,7 +135,7 @@ AccountModel::loadData()
 #endif
    foreach ( Account* acct, allAccounts )
    {
-       qDebug() << "Resolver is left over:" << acct->accountFriendlyName();
+       qDebug() << "Resolver is left over:" << acct->accountFriendlyName() << acct->accountId();
 //        Q_ASSERT( !qobject_cast< AtticaResolverAccount* >( acct ) ); // This should be caught above in the attica list
 
        if ( qobject_cast< ResolverAccount* >( acct ) && !qobject_cast< AtticaResolverAccount* >( acct ) )
@@ -342,12 +351,15 @@ AccountModel::data( const QModelIndex& index, int role ) const
             Q_ASSERT( node->customAccount );
             Q_ASSERT( node->factory );
 
-            Account* account = node->customAccount;
-            // This is sort of ugly. CustomAccounts are pure Account*, but we know that
+            Attica::Content content = node->atticaContent;
+            // This is ugly. CustomAccounts are pure Account*, but we know that
             // some might also be linked to attica resolvers (not always). If that is the case
             // they have a Attica::Content set on the node, so we use that to display some
             // extra metadata and rating
-            const bool hasAttica = !node->atticaContent.id().isEmpty();
+            Account* account = node->customAccount;
+            if ( node->type == AccountModelNode::CustomAccountType && qobject_cast< CustomAtticaAccount* >( account ) )
+                content = qobject_cast< CustomAtticaAccount* >( node->customAccount )->atticaContent();
+            const bool hasAttica = !content.id().isNull();
 
             switch ( role )
             {
@@ -359,15 +371,15 @@ AccountModel::data( const QModelIndex& index, int role ) const
                     return ShippedWithTomahawk;
                 case Qt::ToolTipRole:
                 case DescriptionRole:
-                    return hasAttica ? node->atticaContent.description() : node->factory->description();
+                    return hasAttica ? content.description() : node->factory->description();
                 case CanRateRole:
                     return hasAttica;
                 case AuthorRole:
-                    return hasAttica ? node->atticaContent.author() : QString();
+                    return hasAttica ? content.author() : QString();
                 case RatingRole:
-                    return hasAttica ? node->atticaContent.rating() / 20 : 0; // rating is out of 100
+                    return hasAttica ? content.rating() / 20 : 0; // rating is out of 100
                 case DownloadCounterRole:
-                    return hasAttica ? node->atticaContent.downloads() : QVariant();
+                    return hasAttica ? content.downloads() : QVariant();
                 case RowTypeRole:
                     return CustomAccount;
                 case AccountData:
@@ -380,6 +392,8 @@ AccountModel::data( const QModelIndex& index, int role ) const
                     return account->enabled() ? Qt::Checked : Qt::Unchecked;
                 case ConnectionStateRole:
                     return account->connectionState();
+                case UserHasRatedRole:
+                    return hasAttica ? AtticaManager::instance()->userHasRated( content ) : false;
                 default:
                     return QVariant();
             }
@@ -456,8 +470,11 @@ AccountModel::setData( const QModelIndex& index, const QVariant& value, int role
                     qDebug() << "Kicked off fetch+install, now waiting";
                     m_waitingForAtticaInstall.insert( resolver.id() );
 
-                    emit startInstalling( index );
-                    AtticaManager::instance()->installResolver( resolver );
+                    if ( node->atticaAccount )
+                        AtticaManager::instance()->installResolverWithHandler( resolver, node->atticaAccount );
+                    else
+                        AtticaManager::instance()->installResolver( resolver, true );
+
                     return true;
                 }
 
@@ -540,16 +557,25 @@ AccountModel::setData( const QModelIndex& index, const QVariant& value, int role
     if ( role == RatingRole )
     {
         // We only support rating Attica resolvers for the moment.
-        Q_ASSERT( node->type == AccountModelNode::AtticaType );
+        Attica::Content content;
+        if ( node->type == AccountModelNode::AtticaType )
+            content = node->atticaContent;
+        else if ( node->type == AccountModelNode::CustomAccountType && qobject_cast< CustomAtticaAccount* >( node->customAccount ) )
+            content = qobject_cast< CustomAtticaAccount* >( node->customAccount )->atticaContent();
 
-        AtticaManager::ResolverState state = AtticaManager::instance()->resolverState( node->atticaContent );
+        Q_ASSERT( !content.id().isNull() );
+
+        AtticaManager::ResolverState state = AtticaManager::instance()->resolverState( content );
         // For now only allow rating if a resolver is installed!
         if ( state != AtticaManager::Installed && state != AtticaManager::NeedsUpgrade )
             return false;
-        if ( AtticaManager::instance()->userHasRated( node->atticaContent ) )
+        if ( AtticaManager::instance()->userHasRated( content ) )
             return false;
-        node->atticaContent.setRating( value.toInt() * 20 );
-        AtticaManager::instance()->uploadRating( node->atticaContent );
+        content.setRating( value.toInt() * 20 );
+        AtticaManager::instance()->uploadRating( content );
+
+        if ( node->type == AccountModelNode::AtticaType )
+            node->atticaContent = content;
 
         emit dataChanged( index, index );
 
@@ -592,10 +618,6 @@ AccountModel::accountAdded( Account* account )
                 AccountManager::instance()->enableAccount( account );
 
             m_waitingForAtticaInstall.remove( attica->atticaId() );
-
-            // find index to emit doneInstalling for
-            const QModelIndex idx = index( i, 0, QModelIndex() );
-            emit doneInstalling( idx );
         }
 
         if ( thisIsTheOne )
@@ -713,15 +735,56 @@ AccountModel::accountRemoved( Account* account )
 void
 AccountModel::resolverInstallFailed( const QString& resolverId )
 {
+    const QModelIndex idx = indexForAtticaId( resolverId );
+    if ( idx.isValid() )
+    {
+        qDebug() << "Got failed attica install in account mode, emitting signal!";
+        emit errorInstalling( idx );
+    }
+}
+
+
+QModelIndex
+AccountModel::indexForAtticaId( const QString& resolverId ) const
+{
     for ( int i = 0; i < m_accounts.size(); i++ )
     {
         if ( m_accounts[ i ]->type == AccountModelNode::AtticaType && m_accounts[ i ]->atticaContent.id() == resolverId )
         {
-            qDebug() << "Got failed attica install in account mode, emitting signal!";
-            emit errorInstalling( index( i, 0, QModelIndex() ) );
-
-            return;
+            return index( i, 0, QModelIndex() );
         }
+        else if ( m_accounts[ i ]->type == AccountModelNode::CustomAccountType && qobject_cast< CustomAtticaAccount* >( m_accounts[ i ]->customAccount ) )
+        {
+            const CustomAtticaAccount* atticaAcct = qobject_cast< CustomAtticaAccount* >( m_accounts[ i ]->customAccount );
+            if ( atticaAcct->atticaContent().id() == resolverId )
+                return index( i, 0, QModelIndex() );
+        }
+    }
+
+    return QModelIndex();
+}
+
+
+void
+AccountModel::onStartedInstalling( const QString& resolverId )
+{
+    const QModelIndex idx = indexForAtticaId( resolverId );
+    if ( idx.isValid() )
+    {
+        qDebug() << "Got resolver that is beginning to install, emitting signal";
+        emit startInstalling( idx );
+    }
+}
+
+
+void
+AccountModel::onFinishedInstalling( const QString& resolverId )
+{
+    const QModelIndex idx = indexForAtticaId( resolverId );
+    if ( idx.isValid() )
+    {
+        qDebug() << "Got resolver that is beginning to install, emitting signal";
+        emit doneInstalling( idx );
     }
 }
 

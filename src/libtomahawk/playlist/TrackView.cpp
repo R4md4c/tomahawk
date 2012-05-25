@@ -25,8 +25,9 @@
 
 #include "TrackHeader.h"
 #include "ViewManager.h"
-#include "TrackModel.h"
-#include "TrackProxyModel.h"
+#include "PlayableModel.h"
+#include "PlayableProxyModel.h"
+#include "PlayableItem.h"
 #include "audio/AudioEngine.h"
 #include "context/ContextWidget.h"
 #include "widgets/OverlayWidget.h"
@@ -56,6 +57,10 @@ TrackView::TrackView( QWidget* parent )
     , m_updateContextView( true )
     , m_contextMenu( new ContextMenu( this ) )
 {
+    setFrameShape( QFrame::NoFrame );
+    setAttribute( Qt::WA_MacShowFocusRect, 0 );
+
+    setContentsMargins( 0, 0, 0, 0 );
     setMouseTracking( true );
     setAlternatingRowColors( true );
     setSelectionMode( QAbstractItemView::ExtendedSelection );
@@ -111,7 +116,7 @@ TrackView::setGuid( const QString& guid )
 
 
 void
-TrackView::setProxyModel( TrackProxyModel* model )
+TrackView::setProxyModel( PlayableProxyModel* model )
 {
     m_proxyModel = model;
 
@@ -126,19 +131,19 @@ void
 TrackView::setModel( QAbstractItemModel* model )
 {
     Q_UNUSED( model );
-    tDebug() << "Explicitly use setTrackModel instead";
+    tDebug() << "Explicitly use setPlayableModel instead";
     Q_ASSERT( false );
 }
 
 
 void
-TrackView::setTrackModel( TrackModel* model )
+TrackView::setPlayableModel( PlayableModel* model )
 {
     m_model = model;
 
     if ( m_proxyModel )
     {
-        m_proxyModel->setSourceTrackModel( m_model );
+        m_proxyModel->setSourcePlayableModel( m_model );
     }
 
     connect( m_model, SIGNAL( loadingStarted() ), m_loadingSpinner, SLOT( fadeIn() ) );
@@ -151,9 +156,9 @@ TrackView::setTrackModel( TrackModel* model )
 
     switch( model->style() )
     {
-        case TrackModel::Short:
-        case TrackModel::ShortWithAvatars:
-        case TrackModel::Large:
+        case PlayableModel::Short:
+        case PlayableModel::ShortWithAvatars:
+        case PlayableModel::Large:
             setHeaderHidden( true );
             setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         break;
@@ -168,7 +173,7 @@ TrackView::setTrackModel( TrackModel* model )
 void
 TrackView::onViewChanged()
 {
-    if ( m_model->style() != TrackModel::Short && m_model->style() != TrackModel::Large ) // eventual FIXME?
+    if ( m_model->style() != PlayableModel::Short && m_model->style() != PlayableModel::Large ) // eventual FIXME?
         return;
 
     if ( m_timer.isActive() )
@@ -249,7 +254,7 @@ TrackView::currentChanged( const QModelIndex& current, const QModelIndex& previo
     if ( !m_updateContextView )
         return;
 
-    TrackModelItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( current ) );
+    PlayableItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( current ) );
     if ( item )
     {
         ViewManager::instance()->context()->setQuery( item->query() );
@@ -275,7 +280,7 @@ TrackView::startAutoPlay( const QModelIndex& index )
         return;
 
     // item isn't playable but still resolving
-    TrackModelItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( index ) );
+    PlayableItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( index ) );
     if ( item && !item->query().isNull() && !item->query()->resolvingFinished() )
     {
         m_autoPlaying = item->query(); // So we can kill it if user starts autoplaying this playlist again
@@ -294,12 +299,11 @@ TrackView::startAutoPlay( const QModelIndex& index )
 bool
 TrackView::tryToPlayItem( const QModelIndex& index )
 {
-    TrackModelItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( index ) );
-    if ( item && !item->query().isNull() && item->query()->numResults() )
+    PlayableItem* item = m_model->itemFromIndex( m_proxyModel->mapToSource( index ) );
+    if ( item && !item->query().isNull() )
     {
-        tDebug() << "Result activated:" << item->query()->toString() << item->query()->results().first()->url();
         m_proxyModel->setCurrentIndex( index );
-        AudioEngine::instance()->playItem( m_proxyModel->playlistInterface(), item->query()->results().first() );
+        AudioEngine::instance()->playItem( m_proxyModel->playlistInterface(), item->query() );
 
         return true;
     }
@@ -556,7 +560,7 @@ TrackView::onCustomContextMenu( const QPoint& pos )
         if ( index.column() )
             continue;
 
-        TrackModelItem* item = proxyModel()->itemFromIndex( proxyModel()->mapToSource( index ) );
+        PlayableItem* item = proxyModel()->itemFromIndex( proxyModel()->mapToSource( index ) );
         if ( item && !item->query().isNull() )
         {
             if ( item->query()->numResults() > 0 )
@@ -597,10 +601,10 @@ TrackView::updateHoverIndex( const QPoint& pos )
         repaint();
     }
 
-    if ( !m_model || m_model->style() != TrackModel::Detailed )
+    if ( !m_model || m_model->style() != PlayableModel::Detailed )
         return;
 
-    if ( idx.column() == TrackModel::Artist || idx.column() == TrackModel::Album || idx.column() == TrackModel::Track )
+    if ( idx.column() == PlayableModel::Artist || idx.column() == PlayableModel::Album || idx.column() == PlayableModel::Track )
     {
         if ( pos.x() > header()->sectionViewportPosition( idx.column() ) + header()->sectionSize( idx.column() ) - 16 &&
              pos.x() < header()->sectionViewportPosition( idx.column() ) + header()->sectionSize( idx.column() ) )
@@ -649,19 +653,19 @@ TrackView::mousePressEvent( QMouseEvent* event )
 {
     QTreeView::mousePressEvent( event );
 
-    if ( !m_model || m_model->style() != TrackModel::Detailed )
+    if ( !m_model || m_model->style() != PlayableModel::Detailed )
         return;
 
     QModelIndex idx = indexAt( event->pos() );
     if ( event->pos().x() > header()->sectionViewportPosition( idx.column() ) + header()->sectionSize( idx.column() ) - 16 &&
          event->pos().x() < header()->sectionViewportPosition( idx.column() ) + header()->sectionSize( idx.column() ) )
     {
-        TrackModelItem* item = proxyModel()->itemFromIndex( proxyModel()->mapToSource( idx ) );
+        PlayableItem* item = proxyModel()->itemFromIndex( proxyModel()->mapToSource( idx ) );
         switch ( idx.column() )
         {
-            case TrackModel::Artist:
+            case PlayableModel::Artist:
             {
-                if ( item->query()->results().count() )
+                if ( item->query()->numResults() )
                 {
                     ViewManager::instance()->show( item->query()->results().first()->artist() );
                 }
@@ -672,9 +676,9 @@ TrackView::mousePressEvent( QMouseEvent* event )
                 break;
             }
 
-            case TrackModel::Album:
+            case PlayableModel::Album:
             {
-                if ( item->query()->results().count() )
+                if ( item->query()->numResults() )
                 {
                     ViewManager::instance()->show( item->query()->results().first()->album() );
                 }
@@ -686,7 +690,7 @@ TrackView::mousePressEvent( QMouseEvent* event )
                 break;
             }
 
-            case TrackModel::Track:
+            case PlayableModel::Track:
             {
                 ViewManager::instance()->show( item->query() );
                 break;

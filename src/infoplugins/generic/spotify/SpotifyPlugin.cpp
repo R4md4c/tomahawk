@@ -24,6 +24,7 @@
 #include <QCryptographicHash>
 #include <QNetworkConfiguration>
 #include <QNetworkReply>
+#include <QtPlugin>
 
 #include "Album.h"
 #include "Typedefs.h"
@@ -32,6 +33,7 @@
 #include "utils/TomahawkUtils.h"
 #include "utils/Logger.h"
 #include "CountryUtils.h"
+#include "Source.h"
 
 #define SPOTIFY_API_URL "http://spotikea.tomahawk-player.org/"
 #include <qjson/parser.h>
@@ -383,3 +385,6 @@ SpotifyPlugin::chartReturned()
     else
         qDebug() << "Network error in fetching chart:" << reply->url().toString();
 }
+
+
+Q_EXPORT_PLUGIN2( Tomahawk::InfoSystem::InfoPlugin, Tomahawk::InfoSystem::SpotifyPlugin )

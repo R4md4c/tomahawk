@@ -24,6 +24,9 @@
 
 #include "utils/TomahawkUtils.h"
 #include "utils/Logger.h"
+#include "Source.h"
+#include "BinaryExtractWorker.h"
+#include "SharedTimeLine.h"
 
 #ifdef LIBLASTFM_FOUND
     #include <lastfm/ws.h>
@@ -38,6 +41,7 @@
 #include <QDir>
 #include <QMutex>
 #include <QCryptographicHash>
+#include <QProcess>
 
 #include <quazip.h>
 #include <quazipfile.h>
@@ -53,7 +57,7 @@
 #endif
 
 #ifdef QCA2_FOUND
-#include <QtCrypto>
+    #include <QtCrypto>
 #endif
 
 namespace TomahawkUtils
@@ -460,7 +464,10 @@ nam()
 {
     QMutexLocker locker( &s_namAccessMutex );
     if ( s_threadNamHash.contains(  QThread::currentThread() ) )
+    {
+        //tDebug() << Q_FUNC_INFO << "Found current thread in nam hash";
         return s_threadNamHash[ QThread::currentThread() ];
+    }
 
     if ( !s_threadNamHash.contains( TOMAHAWK_APPLICATION::instance()->thread() ) )
     {
@@ -472,6 +479,7 @@ nam()
         else
             return 0;
     }
+    tDebug() << Q_FUNC_INFO << "Found gui thread in nam hash";
 
     // Create a nam for this thread based on the main thread's settings but with its own proxyfactory
     QNetworkAccessManager *mainNam = s_threadNamHash[ TOMAHAWK_APPLICATION::instance()->thread() ];
@@ -483,7 +491,9 @@ nam()
 
     s_threadNamHash[ QThread::currentThread() ] = newNam;
 
-    tDebug( LOGEXTRA ) << "created new nam for thread " << QThread::currentThread();
+    tDebug( LOGEXTRA ) << Q_FUNC_INFO << "created new nam for thread " << QThread::currentThread();
+    //QNetworkProxy proxy = dynamic_cast< TomahawkUtils::NetworkProxyFactory* >( newNam->proxyFactory() )->proxy();
+    //tDebug() << Q_FUNC_INFO << "reply proxy properties: " << proxy.type() << proxy.hostName() << proxy.port();
 
     return newNam;
 }
@@ -520,6 +530,7 @@ setNam( QNetworkAccessManager* nam, bool noMutexLocker )
                 s_noProxyHostsMutex.unlock();
         }
 
+        QNetworkProxyFactory::setApplicationProxyFactory( proxyFactory );
         nam->setProxyFactory( proxyFactory );
         s_threadNamHash[ QThread::currentThread() ] = nam;
         s_threadProxyFactoryHash[ QThread::currentThread() ] = proxyFactory;
@@ -646,43 +657,6 @@ crash()
 }
 
 
-SharedTimeLine::SharedTimeLine()
-    : QObject( 0 )
-    , m_refcount( 0 )
-{
-    m_timeline.setCurveShape( QTimeLine::LinearCurve );
-    m_timeline.setFrameRange( 0, INT_MAX );
-    m_timeline.setDuration( INT_MAX );
-    m_timeline.setUpdateInterval( 40 );
-    connect( &m_timeline, SIGNAL( frameChanged( int ) ), SIGNAL( frameChanged( int ) ) );
-}
-
-void
-SharedTimeLine::connectNotify( const char* signal )
-{
-    if ( signal == QMetaObject::normalizedSignature( SIGNAL( frameChanged( int ) ) ) ) {
-        m_refcount++;
-        if ( m_timeline.state() != QTimeLine::Running )
-            m_timeline.start();
-    }
-}
-
-
-void
-SharedTimeLine::disconnectNotify( const char* signal )
-{
-    if ( signal == QMetaObject::normalizedSignature( SIGNAL( frameChanged( int ) ) ) )
-    {
-        m_refcount--;
-        if ( m_timeline.state() == QTimeLine::Running && m_refcount == 0 )
-        {
-            m_timeline.stop();
-            deleteLater();
-        }
-    }
-}
-
-
 bool
 verifyFile( const QString &filePath, const QString &signature )
 {
@@ -770,7 +744,6 @@ extractScriptPayload( const QString& filename, const QString& resolverId )
     }
     resolverDir.cd( QString( "atticaresolvers/%1" ).arg( resolverId ) );
 
-
     if ( !unzipFileInFolder( filename, resolverDir ) )
     {
         qWarning() << "Failed to unzip resolver. Ooops.";
@@ -829,6 +802,7 @@ unzipFileInFolder( const QString &zipFileName, const QDir &folder )
         if ( !out.open( QIODevice::WriteOnly ) )
         {
             tLog() << "Failed to open zip extract file:" << out.errorString() << info.name;
+            fileInZip.close();
             continue;
         }
 
@@ -846,64 +820,11 @@ unzipFileInFolder( const QString &zipFileName, const QDir &folder )
 void
 extractBinaryResolver( const QString& zipFilename, QObject* receiver )
 {
-#if !defined(Q_OS_MAC) && !defined (Q_OS_WIN)
-    Q_ASSERT( false );
-    qWarning() << "NO SUPPORT YET FOR LINUX BINARY RESOLVERS!";
-    return;
-#endif
-
-#ifdef Q_OS_MAC
-    // Platform-specific handling of resolver payload now. We know it's good
-    // Unzip the file.
-    QFileInfo info( zipFilename );
-    QDir tmpDir = QDir::tempPath();
-    if  ( !tmpDir.mkdir( info.baseName() ) )
-    {
-        qWarning() << "Failed to create temporary directory to unzip in:" << tmpDir.absolutePath();
-        return;
-    }
-    tmpDir.cd( info.baseName() );
-    TomahawkUtils::unzipFileInFolder( info.absoluteFilePath(), tmpDir );
-
-    // On OSX it just contains 1 file, the resolver executable itself. For now. We just copy it to
-    // the Tomahawk.app/Contents/MacOS/ folder alongside the Tomahawk executable.
-    const QString dest = QCoreApplication::applicationDirPath();
-    // Find the filename
-    const QDir toList( tmpDir.absolutePath() );
-    const QStringList files = toList.entryList( QStringList(), QDir::Files );
-    Q_ASSERT( files.size() == 1 );
-
-    const QString src = toList.absoluteFilePath( files.first() );
-    qDebug() << "OS X: Copying binary resolver from to:" << src << dest;
-
-    copyWithAuthentication( src, dest, receiver );
-#elif  defined(Q_OS_WIN)
-    // We unzip directly to the target location, just like normal attica resolvers
-    Q_ASSERT( receiver );
-    if ( !receiver )
-        return;
-
-    const QString resolverId = receiver->property( "resolverid" ).toString();
-
-    Q_ASSERT( !resolverId.isEmpty() );
-    if ( resolverId.isEmpty() )
-        return;
-
-    const QDir resolverPath( extractScriptPayload( zipFilename, resolverId ) );
-    const QStringList files = resolverPath.entryList( QStringList() << "*.exe", QDir::Files );
-    qDebug() << "Found executables in unzipped binary resolver dir:" << files;
-    Q_ASSERT( files.size() == 1 );
-    if ( files.size() < 1 )
-        return;
-
-    const QString resolverToUse = resolverPath.absoluteFilePath( files.first() );
-    QMetaObject::invokeMethod(receiver, "installSucceeded", Qt::DirectConnection, Q_ARG( QString, resolverToUse ) );
-
-#endif
-
-    // No support for binary resolvers on linux! Shouldn't even have been allowed to see/install..
-    Q_ASSERT( false );
+    BinaryExtractWorker* worker = new BinaryExtractWorker( zipFilename, receiver );
+    worker->start( QThread::LowPriority );
 }
 
 
 } // ns
+
+#include "TomahawkUtils.moc"

@@ -18,20 +18,23 @@
  *   along with Tomahawk. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "InfoSystemWorker.h"
+
+#include "config.h"
+#include "HeadlessCheck.h"
+#include "InfoSystemCache.h"
+#include "GlobalActionManager.h"
+#include "utils/TomahawkUtils.h"
+#include "utils/Logger.h"
+#include "Source.h"
+
+
 #include <QCoreApplication>
 #include <QNetworkConfiguration>
 #include <QNetworkProxy>
 #include <QDir>
 #include <QLibrary>
 #include <QPluginLoader>
-
-#include "config.h"
-#include "HeadlessCheck.h"
-#include "InfoSystemWorker.h"
-#include "InfoSystemCache.h"
-#include "GlobalActionManager.h"
-#include "utils/TomahawkUtils.h"
-#include "utils/Logger.h"
 
 namespace Tomahawk
 {
@@ -92,7 +95,8 @@ InfoSystemWorker::addInfoPlugin( Tomahawk::InfoSystem::InfoPluginPtr plugin )
         tDebug() << Q_FUNC_INFO << "passed-in plugin is null";
         return;
     }
-    
+
+    plugin.data()->moveToThread( this->thread() );
     m_plugins.append( plugin );
     registerInfoTypes( plugin, plugin.data()->supportedGetTypes(), plugin.data()->supportedPushTypes() );
 
@@ -118,6 +122,8 @@ InfoSystemWorker::addInfoPlugin( Tomahawk::InfoSystem::InfoPluginPtr plugin )
             SLOT( updateCacheSlot( Tomahawk::InfoSystem::InfoStringHash, qint64, Tomahawk::InfoSystem::InfoType, QVariant ) ),
             Qt::QueuedConnection
     );
+    
+    QMetaObject::invokeMethod( plugin.data(), "init", Qt::QueuedConnection );
 }
 
 
@@ -131,12 +137,12 @@ InfoSystemWorker::removeInfoPlugin( Tomahawk::InfoSystem::InfoPluginPtr plugin )
         tDebug() << Q_FUNC_INFO << "passed-in plugin is null";
         return;
     }
-    
+
     foreach ( InfoPluginPtr ptr, m_plugins )
     {
         if ( ptr == plugin )
             break;
-        
+
         tDebug() << Q_FUNC_INFO << "This plugin does not exist in the infosystem.";
         return;
     }
@@ -192,16 +198,16 @@ InfoSystemWorker::findInfoPlugins()
 void
 InfoSystemWorker::loadInfoPlugins( const QStringList& pluginPaths )
 {
-    tDebug() << Q_FUNC_INFO << "Attempting to load the following plugin paths: " << pluginPaths;
+    tDebug() << Q_FUNC_INFO << "Attempting to load the following plugin paths:" << pluginPaths;
 
     if ( pluginPaths.isEmpty() )
         return;
-    
+
     foreach ( const QString fileName, pluginPaths )
     {
         if ( !QLibrary::isLibrary( fileName ) )
             continue;
- 
+
         tDebug() << Q_FUNC_INFO << "Trying to load plugin:" << fileName;
 
         QPluginLoader loader( fileName );
@@ -219,7 +225,7 @@ InfoSystemWorker::loadInfoPlugins( const QStringList& pluginPaths )
             addInfoPlugin( InfoPluginPtr( infoPlugin ) );
         }
         else
-            tDebug() << Q_FUNC_INFO << "Loaded invalid plugin: " << loader.fileName();
+            tDebug() << Q_FUNC_INFO << "Loaded invalid plugin:" << loader.fileName();
     }
 }
 
@@ -334,7 +340,7 @@ InfoSystemWorker::pushInfo( Tomahawk::InfoSystem::InfoPushData pushData )
     }
 
     tDebug() << Q_FUNC_INFO << "number of matching plugins: " << m_infoPushMap[ pushData.type ].size();
-    
+
     Q_FOREACH( InfoPluginPtr ptr, m_infoPushMap[ pushData.type ] )
     {
         if( ptr )

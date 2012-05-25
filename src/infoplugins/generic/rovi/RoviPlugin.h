@@ -21,6 +21,7 @@
 #define ROVIPLUGIN_H
 
 #include "infosystem/InfoSystem.h"
+#include "infoplugins/InfoPluginDllMacro.h"
 
 #include <QNetworkReply>
 
@@ -32,14 +33,18 @@ namespace Tomahawk
 namespace InfoSystem
 {
 
-class RoviPlugin : public InfoPlugin
+class INFOPLUGINDLLEXPORT RoviPlugin : public InfoPlugin
 {
     Q_OBJECT
+    Q_INTERFACES( Tomahawk::InfoSystem::InfoPlugin )
+
 public:
     RoviPlugin();
     virtual ~RoviPlugin();
 
 protected:
+    virtual void init() {}
+    
     virtual void notInCacheSlot( Tomahawk::InfoSystem::InfoStringHash criteria, Tomahawk::InfoSystem::InfoRequestData requestData );
 
     virtual void pushInfo( Tomahawk::InfoSystem::InfoPushData pushData )

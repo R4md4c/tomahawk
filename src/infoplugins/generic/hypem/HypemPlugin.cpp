@@ -30,7 +30,9 @@
 #include "Typedefs.h"
 #include "TomahawkSettings.h"
 #include "utils/TomahawkUtils.h"
+#include "infosystem/InfoSystemWorker.h"
 #include "utils/Logger.h"
+#include "Source.h"
 
 #define HYPEM_URL "http://hypem.com/playlist/"
 #define HYPEM_END_URL "json/1/data.js"
@@ -39,7 +41,7 @@
 
 namespace Tomahawk
 {
-    
+
 namespace InfoSystem
 {
 
@@ -93,8 +95,6 @@ HypemPlugin::HypemPlugin()
                     << "Techno"
                     << "Punk"
                     << "New wave";
-    chartTypes();
-
 }
 
 
@@ -103,6 +103,13 @@ HypemPlugin::HypemPlugin()
 HypemPlugin::~HypemPlugin()
 {
     qDebug() << Q_FUNC_INFO;
+}
+
+
+void
+HypemPlugin::init()
+{
+    chartTypes();
 }
 
 
@@ -188,6 +195,7 @@ HypemPlugin::fetchChartCapabilities( Tomahawk::InfoSystem::InfoRequestData reque
 void
 HypemPlugin::notInCacheSlot( QHash<QString, QString> criteria, Tomahawk::InfoSystem::InfoRequestData requestData )
 {
+    tDebug( LOGVERBOSE ) << "HypemPlugin thread: " << QThread::currentThread() << ", InfoSystemWorker thread: " << Tomahawk::InfoSystem::InfoSystem::instance()->workerThread().data()->currentThread();
     switch ( requestData.type )
     {
         case InfoChart:

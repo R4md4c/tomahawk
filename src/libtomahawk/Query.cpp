@@ -39,6 +39,7 @@
 
 using namespace Tomahawk;
 
+
 SocialAction::SocialAction() {}
 SocialAction::~SocialAction() {}
 
@@ -52,10 +53,12 @@ SocialAction& SocialAction::operator=( const SocialAction& other )
     return *this;
 }
 
+
 SocialAction::SocialAction( const SocialAction& other )
 {
     *this = other;
 }
+
 
 PlaybackLog::PlaybackLog() {}
 PlaybackLog::~PlaybackLog() {}
@@ -69,10 +72,12 @@ PlaybackLog& PlaybackLog::operator=( const PlaybackLog& other )
     return *this;
 }
 
+
 PlaybackLog::PlaybackLog( const PlaybackLog& other )
 {
     *this = other;
 }
+
 
 query_ptr
 Query::get( const QString& artist, const QString& track, const QString& album, const QID& qid, bool autoResolve )
@@ -110,6 +115,7 @@ Query::Query( const QString& artist, const QString& track, const QString& album,
     , m_track( track )
     , m_socialActionsLoaded( false )
     , m_simTracksLoaded( false )
+    , m_lyricsLoaded( false )
     , m_infoJobs( 0 )
 {
     init();
@@ -178,6 +184,16 @@ Query::updateSortNames()
         m_albumSortname = DatabaseImpl::sortname( m_album );
         m_trackSortname = DatabaseImpl::sortname( m_track );
     }
+}
+
+
+query_ptr
+Query::displayQuery() const
+{
+    if ( !results().isEmpty() )
+        return results().first()->toQuery();
+    
+    return m_ownRef.toStrongRef();
 }
 
 
@@ -810,6 +826,39 @@ Query::similarTracks() const
 }
 
 
+QStringList
+Query::lyrics() const
+{
+    if ( !m_lyricsLoaded )
+    {
+        Tomahawk::InfoSystem::InfoStringHash trackInfo;
+        trackInfo["artist"] = artist();
+        trackInfo["track"] = track();
+
+        Tomahawk::InfoSystem::InfoRequestData requestData;
+        requestData.caller = id();
+        requestData.customData = QVariantMap();
+
+        requestData.input = QVariant::fromValue< Tomahawk::InfoSystem::InfoStringHash >( trackInfo );
+        requestData.type = Tomahawk::InfoSystem::InfoTrackLyrics;
+        requestData.requestId = TomahawkUtils::infosystemRequestId();
+        
+        connect( Tomahawk::InfoSystem::InfoSystem::instance(),
+                 SIGNAL( info( Tomahawk::InfoSystem::InfoRequestData, QVariant ) ),
+                 SLOT( infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData, QVariant ) ), Qt::UniqueConnection );
+
+        connect( Tomahawk::InfoSystem::InfoSystem::instance(),
+                 SIGNAL( finished( QString ) ),
+                 SLOT( infoSystemFinished( QString ) ), Qt::UniqueConnection );
+
+        m_infoJobs++;
+        Tomahawk::InfoSystem::InfoSystem::instance()->getInfo( requestData );
+    }
+    
+    return m_lyrics;
+}
+
+
 void
 Query::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestData, QVariant output )
 {
@@ -819,6 +868,15 @@ Query::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestData, QVaria
     QVariantMap returnedData = output.value< QVariantMap >();
     switch ( requestData.type )
     {
+        case InfoSystem::InfoTrackLyrics:
+        {
+            m_lyrics = output.value< QVariant >().toString().split( "\n" );
+            
+            m_lyricsLoaded = true;
+            emit lyricsLoaded();
+            break;
+        }
+
         case InfoSystem::InfoTrackSimilars:
         {
             const QStringList artists = returnedData["artists"].toStringList();
@@ -826,8 +884,9 @@ Query::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestData, QVaria
 
             for ( int i = 0; i < tracks.count() && i < 50; i++ )
             {
-                m_similarTracks << Query::get( artists.at( i ), tracks.at( i ), QString(), uuid(), true );
+                m_similarTracks << Query::get( artists.at( i ), tracks.at( i ), QString(), uuid(), false );
             }
+            Pipeline::instance()->resolve( m_similarTracks );
             
             m_simTracksLoaded = true;
             emit similarTracksLoaded();
@@ -844,9 +903,6 @@ Query::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestData, QVaria
 void
 Query::infoSystemFinished( QString target )
 {
-    tDebug() << Q_FUNC_INFO;
-    Q_UNUSED( target );
-
     if ( target != id() )
         return;
 

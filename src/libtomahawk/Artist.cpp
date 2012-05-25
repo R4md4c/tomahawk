@@ -25,6 +25,7 @@
 #include "database/DatabaseImpl.h"
 #include "database/DatabaseCommand_AllAlbums.h"
 #include "database/DatabaseCommand_TrackStats.h"
+#include "Source.h"
 
 #include "utils/Logger.h"
 
@@ -94,13 +95,9 @@ Artist::Artist( unsigned int id, const QString& name )
 
 
 void
-Artist::onTracksAdded( const QList<Tomahawk::query_ptr>& tracks )
+Artist::onTracksLoaded( Tomahawk::ModelMode mode, const Tomahawk::collection_ptr& collection )
 {
-    Tomahawk::ArtistPlaylistInterface* api = dynamic_cast< Tomahawk::ArtistPlaylistInterface* >( playlistInterface().data() );
-    if ( api )
-        api->addQueries( tracks );
-
-    emit tracksAdded( tracks );
+    emit tracksAdded( playlistInterface( mode, collection )->tracks(), mode, collection );
 }
 
 
@@ -137,7 +134,7 @@ Artist::albums( ModelMode mode, const Tomahawk::collection_ptr& collection ) con
         requestData.caller = m_uuid;
         requestData.input = QVariant::fromValue< Tomahawk::InfoSystem::InfoStringHash >( artistInfo );
         requestData.type = Tomahawk::InfoSystem::InfoArtistReleases;
-        
+
         connect( Tomahawk::InfoSystem::InfoSystem::instance(),
                  SIGNAL( info( Tomahawk::InfoSystem::InfoRequestData, QVariant ) ),
                  SLOT( infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData, QVariant ) ), Qt::UniqueConnection );
@@ -180,7 +177,7 @@ Artist::similarArtists() const
         requestData.input = QVariant::fromValue< Tomahawk::InfoSystem::InfoStringHash >( artistInfo );
         requestData.type = Tomahawk::InfoSystem::InfoArtistSimilars;
         requestData.requestId = TomahawkUtils::infosystemRequestId();
-        
+
         connect( Tomahawk::InfoSystem::InfoSystem::instance(),
                 SIGNAL( info( Tomahawk::InfoSystem::InfoRequestData, QVariant ) ),
                 SLOT( infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData, QVariant ) ), Qt::UniqueConnection );
@@ -192,7 +189,7 @@ Artist::similarArtists() const
         m_infoJobs++;
         Tomahawk::InfoSystem::InfoSystem::instance()->getInfo( requestData );
     }
-    
+
     return m_similarArtists;
 }
 
@@ -219,7 +216,7 @@ Artist::playbackHistory( const Tomahawk::source_ptr& source ) const
             history << log;
         }
     }
-    
+
     return history;
 }
 
@@ -241,7 +238,7 @@ Artist::playbackCount( const source_ptr& source )
         if ( source.isNull() || log.source == source )
             count++;
     }
-    
+
     return count;
 }
 
@@ -254,7 +251,7 @@ Artist::onAlbumsFound( const QList< album_ptr >& albums, const QVariant& data )
         m_databaseAlbums << albums;
         m_albumsLoaded.insert( DatabaseMode, true );
     }
-    
+
     emit albumsAdded( albums, DatabaseMode );
 }
 
@@ -289,7 +286,7 @@ Artist::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestData, QVari
 
             break;
         }
-        
+
         case Tomahawk::InfoSystem::InfoArtistImages:
         {
             if ( !output.isNull() && output.isValid() )
@@ -302,7 +299,7 @@ Artist::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestData, QVari
                     emit coverChanged();
                 }
             }
-            
+
             break;
         }
 
@@ -313,7 +310,7 @@ Artist::infoSystemInfo( Tomahawk::InfoSystem::InfoRequestData requestData, QVari
             {
                 m_similarArtists << Artist::get( artist );
             }
-            
+
             m_simArtistsLoaded = true;
             emit similarArtistsLoaded();
 
@@ -409,12 +406,25 @@ Artist::cover( const QSize& size, bool forceLoad ) const
 
 
 Tomahawk::playlistinterface_ptr
-Artist::playlistInterface()
+Artist::playlistInterface( ModelMode mode, const Tomahawk::collection_ptr& collection )
 {
-    if ( m_playlistInterface.isNull() )
+    playlistinterface_ptr pli = m_playlistInterface[ mode ][ collection ];
+
+    if ( pli.isNull() )
     {
-        m_playlistInterface = Tomahawk::playlistinterface_ptr( new Tomahawk::ArtistPlaylistInterface( this ) );
+        pli = Tomahawk::playlistinterface_ptr( new Tomahawk::ArtistPlaylistInterface( this, mode, collection ) );
+        connect( pli.data(), SIGNAL( tracksLoaded( Tomahawk::ModelMode, Tomahawk::collection_ptr ) ),
+                               SLOT( onTracksLoaded( Tomahawk::ModelMode, Tomahawk::collection_ptr ) ) );
+        
+        m_playlistInterface[ mode ][ collection ] = pli;
     }
 
-    return m_playlistInterface;
+    return pli;
+}
+
+
+QList<Tomahawk::query_ptr>
+Artist::tracks( ModelMode mode, const Tomahawk::collection_ptr& collection )
+{
+    return playlistInterface( mode, collection )->tracks();
 }

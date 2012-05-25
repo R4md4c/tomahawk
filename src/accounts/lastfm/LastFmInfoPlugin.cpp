@@ -30,6 +30,8 @@
 #include "utils/TomahawkUtils.h"
 #include "utils/Logger.h"
 #include "accounts/lastfm/LastFmAccount.h"
+#include "Source.h"
+#include "TomahawkSettings.h"
 
 #include <lastfm/ws.h>
 #include <lastfm/XmlQuery>
@@ -128,7 +130,7 @@ LastFmInfoPlugin::getInfo( Tomahawk::InfoSystem::InfoRequestData requestData )
         case InfoChartCapabilities:
             fetchChartCapabilities( requestData );
             break;
-            
+
         case InfoTrackSimilars:
             fetchSimilarTracks( requestData );
             break;
@@ -210,6 +212,11 @@ LastFmInfoPlugin::scrobble()
         return;
 
     tLog() << Q_FUNC_INFO << "Scrobbling now:" << m_track.toString();
+    
+    // FIXME: workaround for the duration-less dilandau (and others) tracks
+    if ( m_track.duration() == 0 )
+        m_track.setDuration( 31 );
+
     m_scrobbler->cache( m_track );
     m_scrobbler->submit();
 }

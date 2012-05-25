@@ -24,6 +24,7 @@
 #include "database/Database.h"
 #include "database/DatabaseImpl.h"
 #include "Query.h"
+#include "Source.h"
 
 #include "utils/Logger.h"
 
@@ -87,6 +88,7 @@ Album::Album( unsigned int id, const QString& name, const Tomahawk::artist_ptr& 
     , m_cover( 0 )
 #endif
 {
+    m_sortname = DatabaseImpl::sortname( name );
 }
 
 
@@ -215,7 +217,7 @@ Album::playlistInterface( ModelMode mode, const Tomahawk::collection_ptr& collec
         pli = Tomahawk::playlistinterface_ptr( new Tomahawk::AlbumPlaylistInterface( this, mode, collection ) );
         connect( pli.data(), SIGNAL( tracksLoaded( Tomahawk::ModelMode, Tomahawk::collection_ptr ) ),
                                SLOT( onTracksLoaded( Tomahawk::ModelMode, Tomahawk::collection_ptr ) ) );
-        
+
         m_playlistInterface[ mode ][ collection ] = pli;
     }
 

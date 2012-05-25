@@ -25,6 +25,7 @@
 #include "ExternalResolver.h"
 #include "resolvers/ScriptResolver.h"
 #include "resolvers/QtScriptResolver.h"
+#include "Source.h"
 
 #include "utils/Logger.h"
 
@@ -129,7 +130,7 @@ Pipeline::addExternalResolverFactory( ResolverFactoryFunc resolverFactory )
 
 
 Tomahawk::ExternalResolver*
-Pipeline::addScriptResolver( const QString& path, bool start )
+Pipeline::addScriptResolver( const QString& path )
 {
     ExternalResolver* res = 0;
 
@@ -140,8 +141,6 @@ Pipeline::addScriptResolver( const QString& path, bool start )
             continue;
 
         m_scriptResolvers << QWeakPointer< ExternalResolver >( res );
-        if ( start )
-            res->start();
 
         break;
     }
@@ -285,7 +284,7 @@ Pipeline::reportResults( QID qid, const QList< result_ptr >& results )
             m_rids.insert( r->id(), r );
         }
 
-        if ( q->playable() && !q->isFullTextQuery() )
+        if ( q->solved() && !q->isFullTextQuery() )
         {
             setQIDState( q, 0 );
             return;

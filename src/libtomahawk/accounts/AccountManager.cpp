@@ -20,6 +20,7 @@
 #include "AccountManager.h"
 #include "config.h"
 #include "SourceList.h"
+#include "TomahawkSettings.h"
 #include "ResolverAccount.h"
 
 #include <QtCore/QLibrary>
@@ -404,6 +405,8 @@ AccountManager::hookupAccount( Account* account ) const
 void
 AccountManager::hookupAndEnable( Account* account, bool startup )
 {
+    Q_UNUSED( startup );
+
     tDebug( LOGVERBOSE ) << Q_FUNC_INFO;
     SipPlugin* p = account->sipPlugin();
     if ( p )

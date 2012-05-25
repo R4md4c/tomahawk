@@ -26,10 +26,11 @@
 #include "Album.h"
 #include "Query.h"
 #include "utils/Logger.h"
+#include "Source.h"
 
 
 CollectionProxyModel::CollectionProxyModel( QObject* parent )
-    : TrackProxyModel( parent )
+    : PlayableProxyModel( parent )
 {
 }
 

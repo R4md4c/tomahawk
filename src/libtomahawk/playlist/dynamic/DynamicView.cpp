@@ -26,11 +26,12 @@
 #include <QScrollBar>
 
 #include "PlaylistModel.h"
-#include "TrackProxyModel.h"
+#include "PlayableProxyModel.h"
 #include "TrackHeader.h"
 #include "DynamicModel.h"
 #include "widgets/OverlayWidget.h"
 #include "utils/Logger.h"
+#include "Source.h"
 
 using namespace Tomahawk;
 
@@ -48,10 +49,6 @@ DynamicView::DynamicView( QWidget* parent )
         , m_fadebg( false )
         , m_fadeOnly( false )
 {
-    setContentsMargins( 0, 0, 0, 0 );
-    setFrameShape( QFrame::NoFrame );
-    setAttribute( Qt::WA_MacShowFocusRect, 0 );
-
     m_fadeOutAnim.setDuration( FADE_LENGTH );
     m_fadeOutAnim.setCurveShape( QTimeLine::LinearCurve );
     m_fadeOutAnim.setFrameRange( 100, 0 );
@@ -70,7 +67,6 @@ DynamicView::DynamicView( QWidget* parent )
 
 DynamicView::~DynamicView()
 {
-
 }
 
 

@@ -1,8 +1,9 @@
 /* === This file is part of Tomahawk Player - <http://tomahawk-player.org> ===
  *
  *   Copyright 2010-2012, Leo Franchi <lfranchi@kde.org>
- *   Copyright 2012, Jeff Mitchell <jeffe@tomahawk-player.org>
- * 
+ *   Copyright 2012, Jeff Mitchell <jeff@tomahawk-player.org>
+ *   Copyright 2010-2012, Christian Muehlhaeuser <muesli@tomahawk-player.org>
+ *
  *   Tomahawk is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
  *   the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +20,7 @@
 
 #include "PixmapDelegateFader.h"
 #include "TomahawkUtilsGui.h"
+#include "Source.h"
 
 #include <QPainter>
 #include <QBuffer>
@@ -30,6 +32,7 @@ using namespace Tomahawk;
 #define COVER_FADEIN 1000
 
 QWeakPointer< TomahawkUtils::SharedTimeLine > PixmapDelegateFader::s_stlInstance = QWeakPointer< TomahawkUtils::SharedTimeLine >();
+
 
 QWeakPointer< TomahawkUtils::SharedTimeLine >
 PixmapDelegateFader::stlInstance()
@@ -45,13 +48,10 @@ PixmapDelegateFader::PixmapDelegateFader( const artist_ptr& artist, const QSize&
     : m_artist( artist )
     , m_size( size )
     , m_mode( mode )
-    , m_startFrame( 0 )
-    , m_connectedToStl( false )
-    , m_fadePct( 100 )
 {
     if ( !m_artist.isNull() )
     {
-        connect( m_artist.data(), SIGNAL( updated() ), SLOT( trackChanged() ) );
+        connect( m_artist.data(), SIGNAL( updated() ), SLOT( artistChanged() ) );
         connect( m_artist.data(), SIGNAL( coverChanged() ), SLOT( artistChanged() ) );
         m_currentReference = m_artist->cover( size, forceLoad );
     }
@@ -64,13 +64,10 @@ PixmapDelegateFader::PixmapDelegateFader( const album_ptr& album, const QSize& s
     : m_album( album )
     , m_size( size )
     , m_mode( mode )
-    , m_startFrame( 0 )
-    , m_connectedToStl( false )
-    , m_fadePct( 100 )
 {
     if ( !m_album.isNull() )
     {
-        connect( m_album.data(), SIGNAL( updated() ), SLOT( trackChanged() ) );
+        connect( m_album.data(), SIGNAL( updated() ), SLOT( albumChanged() ) );
         connect( m_album.data(), SIGNAL( coverChanged() ), SLOT( albumChanged() ) );
         m_currentReference = m_album->cover( size, forceLoad );
     }
@@ -83,9 +80,6 @@ PixmapDelegateFader::PixmapDelegateFader( const query_ptr& track, const QSize& s
     : m_track( track )
     , m_size( size )
     , m_mode( mode )
-    , m_startFrame( 0 )
-    , m_connectedToStl( false )
-    , m_fadePct( 100 )
 {
     if ( !m_track.isNull() )
     {
@@ -106,10 +100,34 @@ PixmapDelegateFader::~PixmapDelegateFader()
 void
 PixmapDelegateFader::init()
 {
+    if ( m_currentReference.isNull() )
+        m_defaultImage = true;
+
+    m_startFrame = 0;
+    m_fadePct = 100;
+    m_connectedToStl = false;
+
     m_current = QPixmap( m_size );
     m_current.fill( Qt::transparent );
+
+    setSize( m_size );
+    if ( m_defaultImage )
+        return;
+
+    stlInstance().data()->setUpdateInterval( 20 );
+    m_startFrame = stlInstance().data()->currentFrame();
+    m_connectedToStl = true;
+    m_fadePct = 0;
+    connect( stlInstance().data(), SIGNAL( frameChanged( int ) ), SLOT( onAnimationStep( int ) ) );
+}
+
+
+void
+PixmapDelegateFader::setSize( const QSize& size )
+{
+    m_size = size;
     
-    if ( m_currentReference.isNull() )
+    if ( m_defaultImage )
     {
         // No cover loaded yet, use default and don't fade in
         if ( !m_album.isNull() )
@@ -118,15 +136,18 @@ PixmapDelegateFader::init()
             m_current = m_currentReference = TomahawkUtils::defaultPixmap( TomahawkUtils::DefaultArtistImage, m_mode, m_size );
         else if ( !m_track.isNull() )
             m_current = m_currentReference = TomahawkUtils::defaultPixmap( TomahawkUtils::DefaultArtistImage, m_mode, m_size );
-
-        return;
+    }
+    else
+    {
+        if ( !m_album.isNull() )
+            m_currentReference = m_album->cover( m_size );
+        else if ( !m_artist.isNull() )
+            m_currentReference = m_artist->cover( m_size );
+        else if ( !m_track.isNull() )
+            m_currentReference = m_track->cover( m_size );
     }
 
-    stlInstance().data()->setUpdateInterval( 20 );
-    m_startFrame = stlInstance().data()->currentFrame();
-    m_connectedToStl = true;
-    m_fadePct = 0;
-    connect( stlInstance().data(), SIGNAL( frameChanged( int ) ), this, SLOT( onAnimationStep( int ) ) );
+    emit repaintRequest();
 }
 
 
@@ -166,6 +187,7 @@ PixmapDelegateFader::setPixmap( const QPixmap& pixmap )
     if ( pixmap.isNull() )
         return;
 
+    m_defaultImage = false;
     QByteArray ba;
     QBuffer buffer( &ba );
     buffer.open( QIODevice::WriteOnly );
@@ -175,13 +197,13 @@ PixmapDelegateFader::setPixmap( const QPixmap& pixmap )
         return;
 
     m_oldImageMd5 = newImageMd5;
-    
+
     if ( m_connectedToStl )
     {
         m_pixmapQueue.enqueue( pixmap );
         return;
     }
-    
+
     m_oldReference = m_currentReference;
     m_currentReference = pixmap;
 
@@ -202,7 +224,7 @@ PixmapDelegateFader::onAnimationStep( int step )
 
     if ( m_fadePct == 100.0 )
         QTimer::singleShot( 0, this, SLOT( onAnimationFinished() ) );
-    
+
     const qreal opacity = m_fadePct / 100.0;
     const qreal oldOpacity =  ( 100.0 - m_fadePct ) / 100.0;
     m_current.fill( Qt::transparent );
@@ -280,7 +302,6 @@ PixmapDelegateFader::onAnimationFinished()
     if ( !m_pixmapQueue.isEmpty() )
         QMetaObject::invokeMethod( this, "setPixmap", Qt::QueuedConnection, Q_ARG( QPixmap, m_pixmapQueue.dequeue() ) );
 }
-
 
 
 QPixmap

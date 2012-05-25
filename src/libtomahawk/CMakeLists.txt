@@ -62,14 +62,11 @@ set( libGuiSources
     playlist/QueueProxyModel.cpp
     playlist/QueueProxyModelPlaylistInterface.cpp
     playlist/QueueView.cpp
-    playlist/TrackModel.cpp
-    playlist/TrackModelItem.cpp
-    playlist/TrackProxyModel.cpp
-    playlist/TrackProxyModelPlaylistInterface.cpp
+    playlist/PlayableModel.cpp
+    playlist/PlayableProxyModel.cpp
+    playlist/PlayableProxyModelPlaylistInterface.cpp
     playlist/TrackView.cpp
     playlist/TrackHeader.cpp
-    playlist/TreeModelItem.cpp
-    playlist/AlbumItem.cpp
     playlist/AlbumModel.cpp
     playlist/AlbumProxyModel.cpp
     playlist/AlbumProxyModelPlaylistInterface.cpp
@@ -82,6 +79,7 @@ set( libGuiSources
     playlist/RecentlyPlayedModel.cpp
     playlist/PlaylistLargeItemDelegate.cpp
     playlist/PlaylistChartItemDelegate.cpp
+    playlist/PlayableItem.cpp
 
     playlist/dynamic/DynamicPlaylist.cpp
     playlist/dynamic/DynamicView.cpp
@@ -123,6 +121,9 @@ set( libGuiSources
     utils/PixmapDelegateFader.cpp
     utils/SmartPointerList.h
     utils/AnimatedSpinner.cpp
+    utils/BinaryInstallerHelper.cpp
+    utils/BinaryExtractWorker.cpp
+    utils/SharedTimeLine.cpp
 
     widgets/AnimatedCounterLabel.cpp
     widgets/CheckDirTree.cpp
@@ -196,7 +197,6 @@ set( libSources
 
     audio/AudioEngine.cpp
 
-
     database/Database.cpp
     database/FuzzyIndex.cpp
     database/DatabaseCollection.cpp
@@ -249,6 +249,7 @@ set( libSources
     database/DatabaseCommand_TrackAttributes.cpp
     database/DatabaseCommand_SetTrackAttributes.cpp
     database/Database.cpp
+    database/TomahawkSqlQuery.cpp
 
     infosystem/InfoSystem.cpp
     infosystem/InfoSystemCache.cpp

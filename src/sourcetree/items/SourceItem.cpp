@@ -212,13 +212,13 @@ SourceItem::localLatchedOn() const
 }
 
 
-Tomahawk::PlaylistInterface::LatchMode
+Tomahawk::PlaylistModes::LatchMode
 SourceItem::localLatchMode() const
 {
     if ( !m_source.isNull() && !m_source->isLocal() )
         return m_source->playlistInterface()->latchMode();
 
-    return Tomahawk::PlaylistInterface::StayOnSong;
+    return Tomahawk::PlaylistModes::StayOnSong;
 }
 
 
@@ -228,7 +228,7 @@ SourceItem::latchedOff( const source_ptr& from, const source_ptr& to )
     if ( from->isLocal() && ( m_source == to || m_source == from ) )
     {
         m_latchedOn = false;
-        disconnect( m_latchedOnTo->playlistInterface().data(), SIGNAL( latchModeChanged( Tomahawk::PlaylistInterface::LatchMode ) ) );
+        disconnect( m_latchedOnTo->playlistInterface().data(), SIGNAL( latchModeChanged( Tomahawk::PlaylistModes::LatchMode ) ) );
         m_latchedOnTo.clear();
         emit updated();
     }
@@ -242,14 +242,14 @@ SourceItem::latchedOn( const source_ptr& from, const source_ptr& to )
     {
         m_latchedOn = true;
         m_latchedOnTo = to;
-        connect( m_latchedOnTo->playlistInterface().data(), SIGNAL( latchModeChanged( Tomahawk::PlaylistInterface::LatchMode ) ), SLOT( latchModeChanged( Tomahawk::PlaylistInterface::LatchMode ) ) );
+        connect( m_latchedOnTo->playlistInterface().data(), SIGNAL( latchModeChanged( Tomahawk::PlaylistModes::LatchMode ) ), SLOT( latchModeChanged( Tomahawk::PlaylistModes::LatchMode ) ) );
         emit updated();
     }
 }
 
 
 void
-SourceItem::latchModeChanged( Tomahawk::PlaylistInterface::LatchMode mode )
+SourceItem::latchModeChanged( Tomahawk::PlaylistModes::LatchMode mode )
 {
     Q_UNUSED( mode );
     emit updated();
@@ -533,9 +533,9 @@ SourceItem::latestAdditionsClicked()
         cv->setAttribute( Qt::WA_MacShowFocusRect, 0 );
 
         RecentlyAddedModel* raModel = new RecentlyAddedModel( m_source, cv );
-        raModel->setStyle( TrackModel::Large );
+        raModel->setStyle( PlayableModel::Large );
         raModel->setTitle( tr( "Latest Additions" ) );
-        
+
         if ( m_source->isLocal() )
             raModel->setDescription( tr( "Latest additions to your collection" ) );
         else
@@ -545,8 +545,8 @@ SourceItem::latestAdditionsClicked()
         connect( del, SIGNAL( updateIndex( QModelIndex ) ), cv, SLOT( update( QModelIndex ) ) );
         cv->setItemDelegate( del );
 
-        cv->setTrackModel( raModel );
-        cv->sortByColumn( TrackModel::Age, Qt::DescendingOrder );
+        cv->setPlayableModel( raModel );
+        cv->sortByColumn( PlayableModel::Age, Qt::DescendingOrder );
 
         m_latestAdditionsPage = cv;
     }
@@ -573,7 +573,7 @@ SourceItem::recentPlaysClicked()
         pv->setAttribute( Qt::WA_MacShowFocusRect, 0 );
 
         RecentlyPlayedModel* raModel = new RecentlyPlayedModel( m_source, pv );
-        raModel->setStyle( TrackModel::Large );
+        raModel->setStyle( PlayableModel::Large );
         raModel->setTitle( tr( "Recently Played Tracks" ) );
 
         if ( m_source->isLocal() )

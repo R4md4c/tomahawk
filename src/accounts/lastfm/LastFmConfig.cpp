@@ -17,34 +17,40 @@
  */
 
 #include "LastFmConfig.h"
+#include "ui_LastFmConfig.h"
 
 #include "LastFmAccount.h"
-#include <utils/TomahawkUtils.h>
-#include "ui_LastFmConfig.h"
+#include "database/Database.h"
+#include "database/DatabaseCommand_LogPlayback.h"
+#include "utils/TomahawkUtils.h"
+#include "utils/Logger.h"
 #include "lastfm/ws.h"
+#include "lastfm/User"
 #include "lastfm/XmlQuery"
 
 using namespace Tomahawk::Accounts;
 
+
 LastFmConfig::LastFmConfig( LastFmAccount* account )
     : QWidget( 0 )
     , m_account( account )
+    , m_page( 1 )
+    , m_lastTimeStamp( 0 )
 {
     m_ui = new Ui_LastFmConfig;
     m_ui->setupUi( this );
+
+    m_ui->progressBar->hide();
 
     m_ui->username->setText( m_account->username() );
     m_ui->password->setText( m_account->password() );
     m_ui->enable->setChecked( m_account->scrobble() );
 
-    connect( m_ui->testLogin, SIGNAL( clicked( bool ) ), this, SLOT( testLogin( bool ) ) );
+    connect( m_ui->testLogin, SIGNAL( clicked( bool ) ), SLOT( testLogin() ) );
+    connect( m_ui->importHistory, SIGNAL( clicked( bool ) ), SLOT( loadHistory() ) );
 
-    connect( m_ui->username, SIGNAL( textChanged( QString ) ), this, SLOT( enableButton() ) );
-    connect( m_ui->password, SIGNAL( textChanged( QString ) ), this, SLOT( enableButton() ) );
-
-// #ifdef Q_WS_MAC // FIXME
-//     m_ui->testLogin->setVisible( false );
-// #endif
+    connect( m_ui->username, SIGNAL( textChanged( QString ) ), SLOT( enableButton() ) );
+    connect( m_ui->password, SIGNAL( textChanged( QString ) ), SLOT( enableButton() ) );
 }
 
 
@@ -70,10 +76,10 @@ LastFmConfig::username() const
 
 
 void
-LastFmConfig::testLogin(bool )
+LastFmConfig::testLogin()
 {
     m_ui->testLogin->setEnabled( false );
-    m_ui->testLogin->setText( "Testing..." );
+    m_ui->testLogin->setText( tr( "Testing..." ) );
 
     QString authToken = TomahawkUtils::md5( ( m_ui->username->text().toLower() + TomahawkUtils::md5( m_ui->password->text().toUtf8() ) ).toUtf8() );
 
@@ -97,6 +103,87 @@ LastFmConfig::enableButton()
 {
     m_ui->testLogin->setText( tr( "Test Login" ) );
     m_ui->testLogin->setEnabled( true );
+}
+
+
+void
+LastFmConfig::loadHistory()
+{
+    if ( m_lastTimeStamp )
+    {
+        m_ui->importHistory->setText( tr( "Importing %1", "e.g. Importing 2012/01/01" ).arg( QDateTime::fromTime_t( m_lastTimeStamp ).toString( "MMMM d yyyy" ) ) );
+    }
+    else
+        m_ui->importHistory->setText( tr( "Importing History..." ) );
+
+    m_ui->importHistory->setEnabled( false );
+    m_ui->progressBar->show();
+
+    QNetworkReply* reply = lastfm::User( m_ui->username->text().toLower() ).getRecentTracks( 200, m_page );
+    connect( reply, SIGNAL( finished() ), SLOT( onHistoryLoaded() ) );
+}
+
+
+void
+LastFmConfig::onHistoryLoaded()
+{
+    int total = 0;
+    bool finished = false;
+    QNetworkReply* reply = qobject_cast< QNetworkReply* >( sender() );
+    
+    try
+    {
+        lastfm::XmlQuery lfm = reply->readAll();
+
+        foreach ( lastfm::XmlQuery e, lfm.children( "track" ) )
+        {
+//            tDebug() << "Found:" << e["artist"].text() << e["name"].text() << e["date"].attribute( "uts" ).toUInt();
+            Tomahawk::query_ptr query = Query::get( e["artist"].text(), e["name"].text(), QString(), QString(), false );
+            m_lastTimeStamp = e["date"].attribute( "uts" ).toUInt();
+            
+            DatabaseCommand_LogPlayback* cmd = new DatabaseCommand_LogPlayback( query, DatabaseCommand_LogPlayback::Finished, m_lastTimeStamp );
+            Database::instance()->enqueue( QSharedPointer<DatabaseCommand>(cmd) );
+        }
+        
+        if ( !lfm.children( "recenttracks" ).isEmpty() )
+        {
+            lastfm::XmlQuery stats = lfm.children( "recenttracks" ).first();
+            
+            int page = stats.attribute( "page" ).toInt();
+            total = stats.attribute( "totalPages" ).toInt();
+            
+            m_ui->progressBar->setMaximum( total );
+            m_ui->progressBar->setValue( page );
+            
+            if ( page < total )
+            {
+                m_page = page + 1;
+                loadHistory();
+            }
+            else
+                finished = true;
+        }
+        else
+            finished = true;
+    }
+    catch( lastfm::ws::ParseError e )
+    {
+        tDebug() << "XmlQuery error:" << e.what();
+        finished = true;
+    }
+    
+    if ( finished )
+    {
+        if ( m_page != total )
+        {
+            m_ui->importHistory->setText( tr( "History Incomplete. Resume" ) );
+            m_ui->importHistory->setEnabled( true );
+        }
+        else
+        {
+            m_ui->importHistory->setText( tr( "Playback History Imported" ) );
+        }
+    }
 }
 
 

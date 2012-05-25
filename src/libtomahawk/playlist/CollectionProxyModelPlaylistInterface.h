@@ -20,8 +20,8 @@
 #ifndef COLLECTIONPROXYMODELPLAYLISTINTERFACE_H
 #define COLLECTIONPROXYMODELPLAYLISTINTERFACE_H
 
-#include "TrackProxyModel.h"
-#include "TrackProxyModelPlaylistInterface.h"
+#include "PlayableProxyModel.h"
+#include "PlayableProxyModelPlaylistInterface.h"
 
 #include "DllMacro.h"
 
@@ -30,7 +30,7 @@ class CollectionProxyModel;
 namespace Tomahawk
 {
 
-class DLLEXPORT CollectionProxyModelPlaylistInterface : public TrackProxyModelPlaylistInterface
+class DLLEXPORT CollectionProxyModelPlaylistInterface : public PlayableProxyModelPlaylistInterface
 {
 Q_OBJECT
 
@@ -38,7 +38,7 @@ public:
     explicit CollectionProxyModelPlaylistInterface( CollectionProxyModel* proxyModel );
     virtual ~CollectionProxyModelPlaylistInterface();
 
-    virtual PlaylistInterface::ViewMode viewMode() const { return PlaylistInterface::Flat; }
+    virtual PlaylistModes::ViewMode viewMode() const { return PlaylistModes::Flat; }
 };
 
 } //ns

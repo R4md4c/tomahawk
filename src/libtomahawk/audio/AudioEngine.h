@@ -1,6 +1,6 @@
 /* === This file is part of Tomahawk Player - <http://tomahawk-player.org> ===
  *
- *   Copyright 2010-2011, Christian Muehlhaeuser <muesli@tomahawk-player.org>
+ *   Copyright 2010-2012, Christian Muehlhaeuser <muesli@tomahawk-player.org>
  *   Copyright 2010-2012, Jeff Mitchell <jeff@tomahawk-player.org>
  *
  *   Tomahawk is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
+#include <QtCore/QQueue>
 
 #include <phonon/MediaObject>
 #include <phonon/AudioOutput>
@@ -29,14 +30,11 @@
 
 #include "libtomahawk/infosystem/InfoSystem.h"
 
-#include "Result.h"
 #include "Typedefs.h"
+#include "Result.h"
 #include "PlaylistInterface.h"
 
 #include "DllMacro.h"
-
-#define AUDIO_VOLUME_STEP 5
-
 
 class DLLEXPORT AudioEngine : public QObject
 {
@@ -66,7 +64,7 @@ public:
     Tomahawk::playlistinterface_ptr playlist() const { return m_playlist; }
 
     Tomahawk::result_ptr currentTrack() const { return m_currentTrack; }
-    
+
     Tomahawk::query_ptr stopAfterTrack() const  { return m_stopAfterTrack; }
 
     qint64 currentTime() const { return m_mediaObject->currentTime(); }
@@ -76,7 +74,7 @@ public slots:
     void playPause();
     void play();
     void pause();
-    void stop(AudioErrorCode errorCode = NoError);
+    void stop( AudioErrorCode errorCode = NoError );
 
     void previous();
     void next();
@@ -88,8 +86,8 @@ public slots:
     void seek( qint64 ms );
     void seek( int ms ); // for compatibility with seekbar in audiocontrols
     void setVolume( int percentage );
-    void lowerVolume() { setVolume( volume() - AUDIO_VOLUME_STEP ); }
-    void raiseVolume() { setVolume( volume() + AUDIO_VOLUME_STEP ); }
+    void lowerVolume(); 
+    void raiseVolume();
     void mute();
 
     void playItem( Tomahawk::playlistinterface_ptr playlist, const Tomahawk::result_ptr& result );
@@ -98,7 +96,7 @@ public slots:
     void playItem( const Tomahawk::album_ptr& album );
     void setPlaylist( Tomahawk::playlistinterface_ptr playlist );
     void setQueue( Tomahawk::playlistinterface_ptr queue ) { m_queue = queue; }
-    
+
     void setStopAfterTrack( const Tomahawk::query_ptr& query );
 
 signals:
@@ -108,8 +106,8 @@ signals:
     void stopped();
     void paused();
     void resumed();
-    
-    void stopAfterTrack_changed();
+
+    void stopAfterTrackChanged();
 
     void seeked( qint64 ms );
 
@@ -139,8 +137,13 @@ private slots:
     void onPlaylistNextTrackReady();
 
     void sendWaitingNotification() const;
+    
+    void queueStateSafety();
 
 private:
+    void checkStateQueue();
+    void queueState( AudioState state );
+
     void setState( AudioState state );
 
     bool isHttpResult( const QString& ) const;
@@ -164,8 +167,11 @@ private:
     bool m_waitingOnNewTrack;
 
     mutable QStringList m_supportedMimeTypes;
-    AudioState m_state;
     unsigned int m_volume;
+
+    AudioState m_state;
+    QQueue< AudioState > m_stateQueue;
+    QTimer m_stateQueueTimer;
 
     static AudioEngine* s_instance;
 };

@@ -22,6 +22,8 @@
 
 #include "infosystem/InfoSystem.h"
 #include "infosystem/InfoSystemWorker.h"
+#include "infoplugins/InfoPluginDllMacro.h"
+
 #include <QNetworkReply>
 #include <QObject>
 
@@ -33,9 +35,10 @@ namespace Tomahawk
 namespace InfoSystem
 {
 
-class SpotifyPlugin : public InfoPlugin
+class INFOPLUGINDLLEXPORT SpotifyPlugin : public InfoPlugin
 {
     Q_OBJECT
+    Q_INTERFACES( Tomahawk::InfoSystem::InfoPlugin )
 
 public:
     SpotifyPlugin();
@@ -56,6 +59,7 @@ public slots:
     void chartTypes();
 
 protected slots:
+    virtual void init() {}
     virtual void getInfo( Tomahawk::InfoSystem::InfoRequestData requestData );
     virtual void notInCacheSlot( Tomahawk::InfoSystem::InfoStringHash criteria, Tomahawk::InfoSystem::InfoRequestData requestData );
     virtual void pushInfo( Tomahawk::InfoSystem::InfoPushData pushData )

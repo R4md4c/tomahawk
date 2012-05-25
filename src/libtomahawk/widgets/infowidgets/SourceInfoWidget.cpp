@@ -43,13 +43,6 @@ SourceInfoWidget::SourceInfoWidget( const Tomahawk::source_ptr& source, QWidget*
 {
     ui->setupUi( this );
 
-    ui->historyView->setFrameShape( QFrame::NoFrame );
-    ui->historyView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-    ui->recentAlbumView->setFrameShape( QFrame::NoFrame );
-    ui->recentAlbumView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-    ui->recentCollectionView->setFrameShape( QFrame::NoFrame );
-    ui->recentCollectionView->setAttribute( Qt::WA_MacShowFocusRect, 0 );
-
     TomahawkUtils::unmarginLayout( layout() );
     TomahawkUtils::unmarginLayout( ui->horizontalLayout );
     TomahawkUtils::unmarginLayout( ui->verticalLayout );
@@ -62,12 +55,12 @@ SourceInfoWidget::SourceInfoWidget( const Tomahawk::source_ptr& source, QWidget*
     ui->historyView->overlay()->setEnabled( false );
 
     m_recentTracksModel = new RecentlyAddedModel( source, ui->recentCollectionView );
-    m_recentTracksModel->setStyle( TrackModel::Short );
-    ui->recentCollectionView->setTrackModel( m_recentTracksModel );
-    ui->recentCollectionView->sortByColumn( TrackModel::Age, Qt::DescendingOrder );
+    m_recentTracksModel->setStyle( PlayableModel::Short );
+    ui->recentCollectionView->setPlayableModel( m_recentTracksModel );
+    ui->recentCollectionView->sortByColumn( PlayableModel::Age, Qt::DescendingOrder );
 
     m_historyModel = new RecentlyPlayedModel( source, ui->historyView );
-    m_historyModel->setStyle( TrackModel::Short );
+    m_historyModel->setStyle( PlayableModel::Short );
     ui->historyView->setPlaylistModel( m_historyModel );
 
     m_recentAlbumModel = new AlbumModel( ui->recentAlbumView );
